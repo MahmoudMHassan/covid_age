@@ -97,13 +97,14 @@ dates_ined <- deaths_ined$Date %>% unique()
 
 # loading data from Drive
 # ~~~~~~~~~~~~~~~~~~~~~~~
-db_drive <- get_country_inputDB("UA")
+db_drive <- get_country_inputDB("UA") %>% 
+  mutate(Code = "UA")
 
 deaths_drive <- 
   db_drive %>% 
   filter(Measure == "Deaths",
-    !Date %in% dates_ined) %>% 
-  select(-Short)
+    !Date %in% dates_ined)# %>% 
+  #select(-Short)
 
 # all data together
 # ~~~~~~~~~~~~~~~~~

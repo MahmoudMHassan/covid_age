@@ -23,7 +23,7 @@ ss_db    <- rubric_i %>% dplyr::pull(Source)
 # current operation just appends cases. I'd prefer to re-tabulate the full case history from the spreadsheet.
 
 # reading data from Montreal and last date entered 
-db_drive <- get_country_inputDB("NZ")
+db_drive <- read_sheet(ss = ss_i, sheet = "database")
 db_drive <- db_drive %>% 
   mutate(Sex = case_when(
          Sex == "b" ~ "b",
@@ -216,6 +216,7 @@ db_v <-
   
   # cases and deaths by age for the last update
   m_url2 <- getURL(m_url)
+XML::htmlTreeParse(m_url2, asText = TRUE)
   tables <- readHTMLTable(m_url2) 
   #JD: Changed position of these tabs
   #db_a <- tables[[3]]
@@ -319,8 +320,8 @@ db_v <-
   ########################################
   
   db_dv1 <- db_drive %>% 
-    filter(Measure != "Cases") %>% 
-    select(-Short)
+    filter(Measure != "Cases") #%>% 
+    #select(-Short)
   
   # combinations in the no-case base
   db_in <- db_dv1 %>% 

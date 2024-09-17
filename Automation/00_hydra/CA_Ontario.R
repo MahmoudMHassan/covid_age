@@ -10,12 +10,18 @@ if (!"email" %in% ls()){
 ctr <- "CA_Ontario"
 dir_n <- "N:/COVerAGE-DB/Automation/Hydra/"
 
+# Drive credentials
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 
 #--------- input files -------------------------------------#
 data_source_c <- paste0(dir_n, "Data_sources/", ctr, "/cases_and_deaths",today(), ".csv")
 data_source_t <- paste0(dir_n, "Data_sources/", ctr, "/tests",today(), ".csv")
 
 # case and death data
+
+## Source Link: https://data.ontario.ca/dataset/f4112442-bdc8-45d2-be3c-12efae72fb27
+
 url <- "https://data.ontario.ca/dataset/f4112442-bdc8-45d2-be3c-12efae72fb27/resource/455fd63b-603d-4608-8216-7d8647f43350/download/conposcovidloc.csv"
 # testing data
 url_test <- "https://data.ontario.ca/dataset/f4f86e54-872d-43f8-8a86-3892fd3cb5e6/resource/ed270bb8-340b-41f9-a7c6-e8ef587e6d11/download/covidtesting.csv"
@@ -23,32 +29,14 @@ url_test <- "https://data.ontario.ca/dataset/f4f86e54-872d-43f8-8a86-3892fd3cb5e
 
 #-------saving input files locally and to Drive
 
-download.file(url, destfile = data_source_c)
+#download.file(url, destfile = data_source_c)
+df <- data.table::fread(url)
+write_csv(df, data_source_c)
+
 download.file(url_test, destfile = data_source_t)
 # loading data
-df <- read_csv(data_source_c)
-df_test <- read_csv(data_source_t)
-
-# compressing files and deleting original files
-data_source <- c(data_source_c, data_source_t)
-
-zipname <- paste0(dir_n, 
-                  "Data_sources/", 
-                  ctr,
-                  "/", 
-                  ctr,
-                  "_data_",
-                  today(), 
-                  ".zip")
-
-zipr(zipname, 
-     data_source, 
-     recurse = TRUE, 
-     compression_level = 9,
-     include_directories = TRUE)
-
-# clean up file chaff
-file.remove(data_source)
+#df <- data.table::fread(data_source_c)
+df_test <- read.csv(data_source_t)
 
 
 #-------there are often date problems...checking...first case should be Jan 21, 2020
@@ -176,14 +164,15 @@ Cases_Deaths_df <- df6 %>%
 # this website has now been taken down.
 
 #--- On 05.06 they changed the variable names
-cumtests <- df_test %>%
-  rename(new_tests="Total tests completed in the last day") %>%
-  select("Reported Date", new_tests) %>%
-  filter(is.na(new_tests)==F) %>%
+#--- seems rechanged at 23.06.2022!
+cumtests <- df_test %>% 
+  rename(new_tests="Total.tests.completed.in.the.last.day") %>%
+  select("Reported.Date", new_tests) %>%
+  filter(is.na(new_tests)==F) %>% 
   mutate(Value=113082+cumsum(new_tests)) %>%
   mutate(Country="Canada", Region="Ontario", Metric="Count", Measure="Tests") %>%
   mutate(Sex="b", Age="TOT",AgeInt="") %>%
-  rename(Date="Reported Date")
+  rename(Date="Reported.Date")
 
 # -- Around Christmas 2020 they changed the date format - then changed it back after New Year 2021
 cumtests$Date <- parse_date_time(cumtests$Date,"ymd") %>% format.Date("%d.%m.%Y")
@@ -226,3 +215,24 @@ write_rds(out, paste0(dir_n, ctr, ".rds"))
 # updating hydra dashboard
 log_update(pp = ctr, N = nrow(out))
 
+
+# compressing source files and deleting original files
+data_source <- c(data_source_c, data_source_t)
+
+zipname <- paste0(dir_n, 
+                  "Data_sources/", 
+                  ctr,
+                  "/", 
+                  ctr,
+                  "_data_",
+                  today(), 
+                  ".zip")
+
+zipr(zipname, 
+     data_source, 
+     recurse = TRUE, 
+     compression_level = 9,
+     include_directories = TRUE)
+
+# clean up file chaff
+#file.remove(data_source)

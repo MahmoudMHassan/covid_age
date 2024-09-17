@@ -12,8 +12,9 @@ if (!"email" %in% ls()){
 ctr          <- "England" # it's a placeholder
 dir_n        <- "N:/COVerAGE-DB/Automation/Hydra/"
 
-drive_auth(email = email)
-gs4_auth(email = email)
+# Drive credentials
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 
 ###deaths total country
 
@@ -26,7 +27,7 @@ download.file(deaths_url, data_source1, mode = "wb")
 
 # download.file(deaths_url, destfile = ("../data/ENdeaths.xlsx"))
 
-deaths_in     <- read_csv(data_source1)
+deaths_in <- read_csv(data_source1)
 
 
 Deaths <- deaths_in %>% 
@@ -88,7 +89,7 @@ download.file(cases_url, data_source2, mode = "wb")
 
 # download.file(deaths_url, destfile = ("../data/ENdeaths.xlsx"))
 
-cases_in     <- read_csv(data_source2)
+cases_in <- read_csv(data_source2)
 
 Cases <- cases_in %>% 
   select(Country =areaName, Date = date, Age = age, Value = cases) %>% 
@@ -149,7 +150,8 @@ data_source3 <- paste0(dir_n, "Data_sources/", ctr, "/regions_Cases",today(), ".
 download.file(regional_cases_url, data_source3, mode = "wb")
 
 
-regional_cases_in     <- read_csv(data_source3)
+regional_cases_in <- read_csv(data_source3, 
+                              col_select = c("areaName", "date", "age", "cases"))
 
 Regional_Cases <- regional_cases_in %>% 
   select(Region =areaName, Date = date, Age = age, Value = cases) %>% 
@@ -207,7 +209,6 @@ Regional_Cases <- regional_cases_in %>%
   sort_input_data()
 
 
-
 ##deaths
 regional_death_url <- "https://api.coronavirus.data.gov.uk/v2/data?areaType=region&metric=newDeaths28DaysByDeathDateAgeDemographics&format=csv"
 
@@ -217,10 +218,11 @@ data_source4 <- paste0(dir_n, "Data_sources/", ctr, "/regions_Deaths",today(), "
 download.file(regional_death_url, data_source4, mode = "wb")
 
 
-regional_deaths_in     <- read_csv(data_source4)
+regional_deaths_in  <- read_csv(data_source4, 
+                                col_select = c("areaName", "date", "age", "deaths"))
 
 Regional_Deaths <- regional_deaths_in %>% 
-  select(Region =areaName, Date = date, Age = age, Value = deaths) %>% 
+  select(Region = areaName, Date = date, Age = age, Value = deaths) %>% 
   filter(Age != "00_59",
          Age != "60+") %>% 
   arrange(Date) %>% 
@@ -285,3 +287,16 @@ write_rds(out, paste0(dir_n, ctr, ".rds"))
 
 # updating hydra dashboard
 log_update(pp = ctr, N = nrow(out))
+
+
+
+##subsubtrgional data (just to save)
+subregional_cases_url <- "https://api.coronavirus.data.gov.uk/v2/data?areaType=ltla&metric=newCasesBySpecimenDateAgeDemographics&format=csv"
+data_source3.2 <- paste0(dir_n, "Data_sources/", ctr, "/subregions_Cases",today(), ".csv")
+
+
+download.file(subregional_cases_url, data_source3.2, mode = "wb")
+
+#subregional_cases_in <- data.table::fread(subregional_cases_url)
+#write_csv(subregional_cases_in, file = data_source3.2)
+

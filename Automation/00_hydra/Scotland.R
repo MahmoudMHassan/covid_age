@@ -15,8 +15,9 @@ dir_n_source <- "N:/COVerAGE-DB/Automation/CDC"
 dir_n        <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 # handle authentications
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
+
 
 # Get upload urls:
 ss_list <- get_input_rubric() %>% 
@@ -25,43 +26,25 @@ ss_list <- get_input_rubric() %>%
 ss_i  <- ss_list %>% dplyr::pull(Sheet)
 ss_db <- ss_list %>% dplyr::pull(Source)
 
-# derive urls
+# derive data
 
-trend_url <-
-  read_html("https://www.opendata.nhs.scot/dataset/b318bddf-a4dc-4262-971f-0ba329e09b87/resource/9393bd66-5012-4f01-9bc5-e7a10accacf4") %>% 
-  html_nodes('#content > div.row.wrapper.no-nav > section > div > p > a') %>% 
-  html_attr('href')
+## Cases data ====================
+
 
 cases_url <- read_html('https://www.opendata.nhs.scot/dataset/b318bddf-a4dc-4262-971f-0ba329e09b87/resource/19646dce-d830-4ee0-a0a9-fcec79b5ac71') %>% 
   html_nodes('#content > div.row.wrapper.no-nav > section > div > p > a') %>% 
   html_attr('href')
 
-totals_url <- read_html('https://www.opendata.nhs.scot/dataset/b318bddf-a4dc-4262-971f-0ba329e09b87/resource/287fc645-4352-4477-9c8c-55bc054b7e76') %>% 
-  html_nodes('#content > div.row.wrapper.no-nav > section > div > p > a') %>% 
-  html_attr('href')
-
-#content > div.row.wrapper.no-nav > section > div > p > a
-
-# -----------------------
 ## Extract daily cases, with 0 to 14 age groups ##
 sccases <- read_csv(cases_url)
-## Extract trend data, ## 
-sctrend <- read_csv(trend_url)
-# Extract totals, which we hope are retrospectively corrected,
-# or at least will be one day? In that case, adjustment will
-# be automatic on our side.
-sctot   <- read_csv(totals_url)
-# -----------------------
 
-# -----------------------
 # Pipeline for *today's* data:
 sc <- 
   sccases %>% 
   select(Date, 
          Sex, 
          Age = AgeGroup, 
-         Cases = TotalPositive, 
-         Deaths = TotalDeaths) %>% 
+         Cases = TotalPositive) %>% 
   filter(Age != 'Total')%>%
   mutate(
     Date = ymd(Date),
@@ -87,7 +70,7 @@ sc <-
       Age == "85" ~ 20)) %>% 
   filter(Age != "60+") %>% 
   filter(Age != "0 to 59") %>% 
-  pivot_longer(Cases:Deaths, 
+  pivot_longer(Cases, 
                names_to = "Measure",
                values_to = "Value") %>% 
   mutate(Country = "Scotland",
@@ -100,32 +83,217 @@ sc <-
          Code = paste0('GB-SCT')) %>% 
   select(Country, Region, Code, Date, Sex, 
          Age, AgeInt, Metric, Measure, Value)
-  
 
-# -----------------------
-# TR: removed both-sex creation, not needed
-# -----------------------
 
-# -----------------------
-# define helper function that infers 0-14.
-# for unique combos of Date, Sex, Measure
-# age groups are the same now, not needed anymore
-#infer_zero <- function(chunk){
-  
-#  chunk %>% 
-#    mutate(TOT = Value[Age == "TOT"],
-#           Marginal = sum(Value[Age!="TOT"]),
-#           Value = ifelse(Age == "TOT", 
-#                          TOT - Marginal,
-#                          Value),
-#           Age = ifelse(Age == "TOT", "0", Age),
-#           AgeInt = ifelse(Age == "0", 15, AgeInt)) %>% 
-#    select(-TOT, - Marginal) %>% 
-#    arrange(Age)
-  
-#}
+## Deaths data ===================
 
-# -----------------------
+#deaths <- read.csv("https://pmd3-production-grafter-sg.publishmydata.com/v1/pipelines/download/job/548ae341-1e34-46c6-ada0-d09d4bcf3a6d")
+# MK- 29 June 2022 #
+# Since June 2022, Scotland publishing data has changed: 
+# National Records of Scotland (NRS) weekly publication on Deaths involving 
+# coronavirus (COVID-19) in Scotland provides data on: 
+# deaths where COVID-19 was mentioned on the death certificate.
+# this weekly series is available for 2020, 2021, and 2022 
+# However, we use the trend data as always in the input_dataset
+# Note: Scotland.rds for data till 02.06.2022 is deprecated in the folder. 
+
+#Source: https://www.nrscotland.gov.uk/covid19stats
+
+## 2020 WEEKLY DEATHS DATA ##
+
+deaths_source2020 <- paste0(dir_n, "Data_sources/", ctr, "/", ctr, "-deaths_2020", ".xlsx")
+
+deaths_url_2020 <- "https://www.nrscotland.gov.uk/files//statistics/covid19/covid-deaths-20-data-final.xlsx"
+
+download.file(deaths_url_2020,
+              destfile = deaths_source2020,
+              mode = "wb")
+
+wk_data_2020 <- read_excel(deaths_source2020,
+                           sheet = 4, skip = 5)
+
+
+
+## 2021 WEEKLY DEATHS DATA ##
+
+deaths_source2021 <- paste0(dir_n, "Data_sources/", ctr, "/", ctr, "-deaths_2021", ".xlsx")
+
+deaths_url_2021 <- "https://www.nrscotland.gov.uk/files//statistics/covid19/covid-deaths-21-data-final.xlsx"
+
+download.file(deaths_url_2021,
+              destfile = deaths_source2021,
+              mode = "wb")
+
+wk_data_2021 <- read_excel(deaths_source2021,
+                           sheet = 4, skip = 5)
+
+
+## 2022/ MOST RECENT FILE ## 
+
+
+deaths_source <- paste0(dir_n, "Data_sources/", ctr, "/", ctr, "-deaths_",today(), ".xlsx")
+
+recent_file_2022 <- read_html("https://www.nrscotland.gov.uk/covid19stats/") %>% 
+  html_nodes(".rteright+ td > a") %>% 
+  html_attr('href') %>% 
+  stringr::str_replace("/files//statistics/covid19/", "")
+
+
+deaths_url <- paste0("https://www.nrscotland.gov.uk/files//statistics/covid19/",
+                     recent_file_2022)
+
+## DOWNLOAD DEATHS recent file AND READ IN THE DATA ##
+
+download.file(deaths_url,
+              destfile = deaths_source,
+              mode = "wb")
+
+
+deaths_recent <- read_excel(deaths_source, sheet = 4, skip = 5)
+
+
+## MERGE ALL DATASETS: 2020, 2021, 2022 (MOST RECENT)
+
+deaths <- bind_rows(wk_data_2020,
+                    wk_data_2021,
+                    deaths_recent)
+
+
+
+## CLEANING AND WRANGLING 
+
+deaths_cleaned <- deaths %>% 
+  dplyr::filter(!is.na(`Registration year`),
+                `Registration year` != "Total") %>% 
+  dplyr::mutate(Sex = case_when(str_detect(`Registration year`, "females") ~ "f",
+                                str_detect(`Registration year`, "males") ~ "m",
+                                TRUE ~ NA_character_)) %>% 
+  tidyr::fill(Sex, .direction = "down") %>% 
+  dplyr::filter(!str_detect(`Registration year`, "Table"),
+                !str_detect(`Registration year`, "Registration year")) %>% 
+  dplyr::mutate(Sex = replace_na(Sex, "b")) %>% 
+  dplyr::rename("Year" = `Registration year`,
+                "Week_number" = `Week number`,
+                "Date" = `Week beginning`,
+                "TOT" = `All ages`) %>% 
+  dplyr::mutate(Date = as.numeric(Date),
+                Date = as.Date(Date, 
+                               origin = "1899-12-30",
+                               format = "%Y-%m-%d"),
+                Date = format(Date, "%d.%m.%Y"),
+                Date = dmy(Date)) %>% 
+  dplyr::select(-c("Year", "Week_number")) %>% 
+  tidyr::pivot_longer(cols = -c("Date", "Sex"),
+                      names_to = "Age",
+                      values_to = "Value") %>% 
+  dplyr::filter(!is.na(Value)) %>% 
+  dplyr::mutate(Value = as.numeric(Value))
+
+## CONVERT THE NEWLY WEEKLY TO CUMULATIVE WEEKLY
+
+deaths_out <- deaths_cleaned %>% 
+  dplyr::arrange(Date, Sex, Age) %>% 
+  dplyr::group_by(Sex, Age) %>% 
+  dplyr::summarise(Value = cumsum(Value),
+                   Date = Date) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(Age = recode(Age,
+                             '<1' = "0",
+                             '1-14' = "1",
+                             '15-44' = "15",
+                             '45-64' = "45",
+                             '65-74' = "65",
+                             '75-84' = "75",
+                             '85+' = "85"),
+                AgeInt = case_when(
+                  Age == "0" ~ 1,
+                  Age == "1" ~ 14,
+                  Age == "15" ~ 30,
+                  Age == "45" ~ 20,
+                  Age == "65" ~ 10,
+                  Age == "75" ~ 10,
+                  Age == "85" ~ 20),
+                Country = "Scotland",
+                Region = "All",
+                Code = "GB-SCT",
+                Metric = "Count",
+                Date = paste(sprintf("%02d",day(Date)), 
+                             sprintf("%02d",month(Date)),
+                             year(Date), 
+                             sep = "."),
+                Measure = "Deaths") %>% 
+  select(Country, Region, Code, Date, Sex, 
+         Age, AgeInt, Metric, Measure, Value) %>% 
+  sort_input_data()
+
+## save a copy of deaths_out data on daily basis ## 
+
+write_rds(deaths_out, 
+          paste0(dir_n, "Data_sources/Scotland/", ctr, "_DeathsWeekly", Sys.Date(), ".rds"))
+
+# deaths2 <- deaths %>% 
+#   select(Date = DateCode, 
+#          Sex, 
+#          Age, 
+#          Value,
+#          Cause.Of.Death) %>% 
+#   filter(Cause.Of.Death == "COVID-19 related",
+#          Date != "2020",
+#          Date != "2021",
+#          Date != "2022",
+#          Age != "All") %>% 
+#   mutate(Date = substr(Date, 5, 14),
+#     Date = ymd(Date),
+#     Age = recode(Age,
+#                  '0 years' = "0",
+#                  '1-14 years' = "1",
+#                  '15-44 years' = "15",
+#                  '45-64 years' = "45",
+#                  '65-74 years' = "65",
+#                  '75-84 years' = "75",
+#                  '85 years and over' = "85"),
+#     Sex = recode(Sex,'Female' = 'f',
+#                  'Male' = 'm',
+#                  'All' = 'b'),
+#     AgeInt = case_when(
+#       Age == "0" ~ 1,
+#       Age == "1" ~ 14,
+#       Age == "15" ~ 30,
+#       Age == "45" ~ 20,
+#       Age == "65" ~ 20,
+#       Age == "75" ~ 20,
+#       Age == "85" ~ 20)
+#     ) %>% 
+#   arrange(Date, Sex ,Age) %>% 
+#   group_by(Sex, Age) %>% 
+#   mutate(Value = cumsum(Value)) %>% 
+#   ungroup() 
+# 
+# #filter(Age != "60+") %>% 
+#   #filter(Age != "0 to 59") %>% 
+#   mutate(Country = "Scotland",
+#          Region = "All",
+#          Metric = "Count",
+#          Measure = "Deaths",
+#          Date = paste(sprintf("%02d",day(Date)),    
+#                       sprintf("%02d",month(Date)),  
+#                       year(Date), 
+#                       sep = "."),
+#          Code = paste0('GB-SCT')) %>% 
+#   select(Country, Region, Code, Date, Sex, 
+#          Age, AgeInt, Metric, Measure, Value) %>% 
+#   sort_input_data()
+
+
+## Trend data ====================
+
+trend_url <-
+  read_html("https://www.opendata.nhs.scot/dataset/b318bddf-a4dc-4262-971f-0ba329e09b87/resource/9393bd66-5012-4f01-9bc5-e7a10accacf4") %>% 
+  html_nodes('#content > div.row.wrapper.no-nav > section > div > p > a') %>% 
+  html_attr('href')
+
+## Extract trend data, ## 
+sctrend <- read_csv(trend_url)
 
 ## keep record starting March 09, 2020 ## 
 
@@ -176,10 +344,21 @@ sct <-
                       sprintf("%02d",month(Date)),  
                       year(Date), 
                       sep = "."),
-         Code = paste0('GB-SCT')) %>% 
-  select(all_of(colnames(sc)))
-  
-# --------------------------------
+         Code = paste0('GB-SCT')) # %>% 
+ # select(all_of(colnames(sc)))
+
+
+## Totals data =======================
+
+totals_url <- read_html('https://www.opendata.nhs.scot/dataset/b318bddf-a4dc-4262-971f-0ba329e09b87/resource/287fc645-4352-4477-9c8c-55bc054b7e76') %>% 
+  html_nodes('#content > div.row.wrapper.no-nav > section > div > p > a') %>% 
+  html_attr('href')
+
+# Extract totals, which we hope are retrospectively corrected,
+# or at least will be one day? In that case, adjustment will
+# be automatic on our side.
+sctot   <- read_csv(totals_url)
+
 # Prepare totals
 TOT <- 
   sctot %>% 
@@ -202,6 +381,33 @@ TOT <-
                       sep = "."),
          Code = paste0("GB-SCT")) %>% 
   select(all_of(colnames(sc)))
+
+# -----------------------
+
+#content > div.row.wrapper.no-nav > section > div > p > a
+
+# -----------------------
+# TR: removed both-sex creation, not needed
+# -----------------------
+
+# -----------------------
+# define helper function that infers 0-14.
+# for unique combos of Date, Sex, Measure
+# age groups are the same now, not needed anymore
+#infer_zero <- function(chunk){
+  
+#  chunk %>% 
+#    mutate(TOT = Value[Age == "TOT"],
+#           Marginal = sum(Value[Age!="TOT"]),
+#           Value = ifelse(Age == "TOT", 
+#                          TOT - Marginal,
+#                          Value),
+#           Age = ifelse(Age == "TOT", "0", Age),
+#           AgeInt = ifelse(Age == "0", 15, AgeInt)) %>% 
+#    select(-TOT, - Marginal) %>% 
+#    arrange(Age)
+  
+#}
 
 # --------------------------------
 ####I think this is not needed anymore

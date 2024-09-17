@@ -1,6 +1,4 @@
 
-
-
 # 1. Preamble ---------------
 
 library(here)
@@ -16,14 +14,15 @@ ctr <- "Japan"
 dir_n <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
+
 
 
 ##previous data
 db_drive <- read_rds(paste0(dir_n, ctr, ".rds")) %>% 
   mutate(Date = dmy(Date))%>%
-  filter(Date <="2020-08-18") %>% 
+ # filter(Date <="2020-08-18") %>% 
 mutate(
   Date = ymd(Date),
   Date = paste(sprintf("%02d",day(Date)),    
@@ -34,12 +33,14 @@ mutate(
 #new death 
 
 death <- read_csv("https://covid19.mhlw.go.jp/public/opendata/deaths_detail_cumulative_weekly.csv", skip = 1)
+
 # death2 <- death %>% 
 #   mutate(Week = sub("...........", "", Week))
 #   #Date = ymd(Date))
 # death2 <- death2[-1]
 #death2 <- death2[-1]
-death2 <- setDT(death)
+death2 <- setDT(death) 
+
 death2 <- melt(death2, id = c("Week"))
 
 headers <- read.csv("https://covid19.mhlw.go.jp/public/opendata/deaths_detail_cumulative_weekly.csv", header = FALSE)

@@ -1,23 +1,20 @@
 library(here)
 source(here("Automation/00_Functions_automation.R"))
-
 library(aweek)
 library(ISOweek)
 
-
-
 # assigning Drive credentials in the case the script is verified manually  
 if (!"email" %in% ls()){
-  email <- "e.delfava@gmail.com"
+  email <- "kikepaila@gmail.com"
 }
-
 # info country and N drive address
 ctr <- "Netherlands"
 dir_n <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
+
 
 # this is specifically for the way NL records isoweeks
 isoweek_to_date_hack <- function(ISOWEEK){

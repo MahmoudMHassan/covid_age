@@ -1,5 +1,7 @@
 # functions
-source("https://raw.githubusercontent.com/timriffe/covid_age/master/Automation/00_Functions_automation.R")
+##source("https://raw.githubusercontent.com/timriffe/covid_age/master/Automation/00_Functions_automation.R")
+
+source(here::here("Automation/00_Functions_automation.R"))
 
 # assigning Drive credentials in the case the script is verified manually  
 if (!"email" %in% ls()){
@@ -7,8 +9,8 @@ if (!"email" %in% ls()){
 }
 
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 
 # info country and N drive address
 ctr <- "New Zealand"
@@ -22,15 +24,15 @@ ss_db    <- rubric_i %>% dplyr::pull(Source)
 # TR:
 # current operation just appends cases. I'd prefer to re-tabulate the full case history from the spreadsheet.
 
-# reading data from Montreal and last date entered 
+# reading data from Drive and last date entered 
 db_drive <- read_sheet(ss = ss_i, sheet = "database")
-db_drive <- db_drive %>% 
-  mutate(Sex = case_when(
-         Sex == "b" ~ "b",
-         Sex == "f" ~ "f",
-         Sex == "m" ~ "m",
-         Sex == "UNK" ~ "UNK",
-         TRUE ~ "b"))
+# db_drive <- db_drive %>% 
+#   mutate(Sex = case_when(
+#          Sex == "b" ~ "b",
+#          Sex == "f" ~ "f",
+#          Sex == "m" ~ "m",
+#          Sex == "UNK" ~ "UNK",
+#          TRUE ~ "b"))
 
 last_date_drive <- db_drive %>% 
   mutate(date_f = dmy(Date)) %>% 
@@ -58,89 +60,53 @@ date_f  <- str_sub(date_text, loc_date1, loc_date2) %>%
 if (date_f > last_date_drive){
 
   ####################################
-  # all cases from case-based database
+  # all cases from github #
   ####################################
 
-  root <- "https://www.health.govt.nz"
-  
-  # cases data
-  html <- read_html(m_url)
-#  url1 <- html_nodes(html, xpath = '/html/body/div[2]/div/div[1]/section/div[2]/section/div/div/div[2]/div[2]/div/article/div[2]/div/div/p[13]/a') %>%
-#    html_attr("href")
 
-  url1 <- paste0("https://www.health.govt.nz/system/files/documents/pages/covid_cases_",today(), ".csv")  
-  db_c <- read_csv(paste0(url1)) %>% 
-    as_tibble()
+  cases <- read.csv("https://raw.githubusercontent.com/minhealthnz/nz-covid-data/main/cases/covid-cases.csv")  
+
   
   db_c2 <- 
-    db_c %>% 
-    select(date = 1,
-           age_gr = 4,
+    cases %>% 
+    select(Date = Report.Date,
+           Age = Age.group,
            Sex) %>% 
-    mutate(date_f = ymd(date))
-
-  unique(db_c2$age_gr)
-  
-  db_c3 <- db_c2 %>% 
-    separate(age_gr, c("Age", "trash"), sep = " to ") %>% 
-    mutate(Age = case_when(Age == "90+" ~ "90",
-                           TRUE ~ Age))
-  unique(db_c3$Age)
-  
-  ages <-  suppressWarnings(as.integer(unique(db_c3$Age))) %>% sort() %>% as.character()
-  dates <- unique(db_c3$date_f) %>% sort()
-  
-  db_c4 <- db_c3 %>% 
-    group_by(date_f, Age, Sex) %>% 
+    mutate(Age = substr(Age, 1,2),
+           Age = case_when(
+             Age == "Un" ~ "UNK",
+             Age == "0 " ~ "0",
+             TRUE ~ Age
+           ),
+           Sex = case_when(
+             Sex == "Female" ~ "f",
+             Sex == "Male" ~ "m",
+             Sex == "Indeterminate" ~ "UNK",
+             Sex == "Unknown" ~ "UNK"
+           )) %>% 
+    group_by(Date, Age, Sex) %>% 
     summarise(new = n()) %>% 
     ungroup() %>% 
-    mutate(Sex = case_when(Sex == "Male" ~ "m", 
-                           Sex == "Female" ~ "f", 
-                           TRUE ~ "UNK")) %>% 
-    tidyr::complete(date_f = dates, Sex = c("f", "m", "UNK"), Age = ages, fill = list(new = 0)) %>% 
+    tidyr::complete(Date, Sex, Age, fill = list(new = 0)) %>% 
     group_by(Sex, Age) %>% 
     mutate(Value = cumsum(new)) %>% 
-    arrange(date_f, Sex, Age) %>% 
+    arrange(Date, Sex, Age) %>% 
     ungroup() %>% 
-    select(-new)
-
-  db_c_sex <- db_c4 %>% 
-    group_by(date_f, Age) %>% 
-    summarise(Value = sum(Value)) %>% 
-    ungroup() %>% 
-    mutate(Sex = "b") %>% 
-    filter(Age != "UNK")
-  
-  db_c_age <- db_c4 %>% 
-    group_by(date_f, Sex) %>% 
-    summarise(Value = sum(Value)) %>% 
-    ungroup() %>% 
-    mutate(Age = "TOT") %>% 
-    filter(Sex != "UNK")
-  
-  db_c5 <- db_c4 %>% 
-    filter(Age != "UNK" & Sex != "UNK") %>% 
-    bind_rows(db_c_sex, db_c_age) 
-  
-  unique(db_c5$Sex)
-  unique(db_c5$Age)
-  
-  db_c6 <- db_c5 %>% 
+    select(-new) %>% 
     mutate(Country = "New Zealand",
            Region = "All",
-           Date = paste(sprintf("%02d",day(date_f)),
-                        sprintf("%02d",month(date_f)),
-                        year(date_f),
+           Date = paste(sprintf("%02d",day(Date)),
+                        sprintf("%02d",month(Date)),
+                        year(Date),
                         sep="."),
            Code = "NZ",
            Metric = "Count",
            Measure = "Cases",
-           AgeInt = case_when(Age == "90" ~ 15,
-                              Age == "TOT" ~ NA_real_,
-                              TRUE ~ 10)) %>% 
-    arrange(date_f, Sex, Measure, suppressWarnings(as.integer(Age))) %>% 
-    select(Country,Region, Code,  Date, Sex, Age, AgeInt, Metric, Measure, Value)
-  
+           AgeInt = case_when(Age == "90" ~ 15L,
+                              Age == "UNK" ~ NA_integer_,
+                              TRUE ~ 10L)) %>% 
+  sort_input_data()
+
     
   # ~~~~~~~~~~~~~
   # vaccines data
@@ -178,23 +144,40 @@ if (date_f > last_date_drive){
     dmy()
   
   
+## MK 05.08.2022: ADDED BOOSTER DOSE DATA, UPDATED AGE GROUPS AND INTERVALS   
+  
 db_v <- 
     read_xlsx(data_source6,
-    sheet = "DHBofResidence by ethnicity")%>%
-  select(Age= `Age group`, Sex= Gender, Vaccination1= `At least partially vaccinated`, Vaccination2= `Fully vaccinated`)%>%
-  pivot_longer(!Age & !Sex, names_to= "Measure", values_to= "Value")%>%
+    sheet = "DHBofResidence by ethnicity") %>% 
+  select(Age= `Age group`, Sex= Gender, 
+         Vaccination1= `At least partially vaccinated`,
+         ## MK: 10.08.2022: changed 'Fully Vaccination' to 'Completed primary course'
+         ## added Booster 2; Vaccination 4
+         Vaccination2= `Completed primary course`,
+         Vaccination3 = `Booster 1 Received`,
+         Vaccination4 = `Booster 2 Received`) %>%
+  ## MK: Vaccination3 has '<' & ',' signs, so remove it
+  mutate(Vaccination3 = str_remove(Vaccination3, '<'),
+         Vaccination3 = str_remove(Vaccination3, ','),
+         Vaccination3 = as.numeric(Vaccination3),
+         Vaccination4 = str_remove(Vaccination4, '<'),
+         Vaccination4 = str_remove(Vaccination4, ','),
+         Vaccination4 = as.numeric(Vaccination4)) %>% 
+  pivot_longer(!Age & !Sex, 
+               names_to= "Measure", values_to= "Value")%>%
   #sum up numbers that were separated by race 
   group_by(Age, Sex, Measure) %>% 
   mutate(Value = sum(Value)) %>% 
   ungroup() %>% 
   distinct()%>%
-  separate(Age, c("Age", "trash"), "-")%>%
+  separate(Age, c("Age", "trash"), "-") %>%
   mutate(Age=recode(Age, 
-                    `90+`= "90"))%>%
-  filter(Age != "Various")%>% 
+                    `90+`= "90")) %>%
+  filter(Age != "Various") %>% 
   mutate(AgeInt = case_when(
-    Age == "12" ~ 4L,
-    Age == "16" ~ 4L,
+    Age == "5" ~ 7L,
+    Age == "12" ~ 6L,
+    Age == "18" ~ 7L,
     Age == "90" ~ 15L,
     TRUE ~ 5L))%>% 
   mutate(Sex = case_when(
@@ -214,7 +197,7 @@ db_v <-
   # deaths by age from html table
   ####################################
   
-  # cases and deaths by age for the last update
+  # deaths by age for the last update
 
 
 html <-read_html(m_url)
@@ -235,10 +218,8 @@ all_the_tables <- html %>%
   db_a2 <- db_a %>% 
     as_tibble() %>% 
     select(Age = 1,
-           Cases = 5,
            Deaths = 4) %>% 
-    mutate(Cases = as.numeric(as.character(Cases)),
-           Deaths = as.numeric(as.character(Deaths)),
+    mutate(Deaths = as.numeric(as.character(Deaths)),
            Deaths = replace_na(Deaths, 0)) %>% 
     separate(Age, c("Age", "trash"), sep = " to ") %>% 
     mutate(Age = case_when(Age == "90+" ~ "90",
@@ -246,20 +227,19 @@ all_the_tables <- html %>%
                            Age == "Unknown" ~ "UNK",
                            TRUE ~ Age),
            Sex = "b") %>% 
-    gather(Cases, Deaths, key = "Measure", value = "Value") %>% 
+    gather(Deaths, key = "Measure", value = "Value") %>% 
     select(-trash)
   
   db_s2 <- db_s %>% 
     as_tibble() %>% 
     select(Sex = 1,
-           Cases = 5,
            Deaths = 4) %>% 
     mutate(Sex = case_when(Sex == "Female" ~ "f",
                            Sex == "Male" ~ "m",
                            Sex == "Total" ~ "b",
                            TRUE ~ "UNK"),
            Age = "TOT") %>% 
-    gather(Cases, Deaths, key = "Measure", value = "Value") %>% 
+    gather(Deaths, key = "Measure", value = "Value") %>% 
     mutate(Value = as.numeric(Value)) %>% 
     filter(Sex != "UNK",
            Sex != "b")
@@ -281,8 +261,8 @@ all_the_tables <- html %>%
     html_table(fill = TRUE, 
                header=TRUE, 
                convert = FALSE)
-  db_ta <- all_the_tables[[12]] 
-  db_ts <- all_the_tables[[13]] 
+  db_ta <- all_the_tables[[10]] 
+  db_ts <- all_the_tables[[11]] 
   
   
   db_ta2 <- db_ta %>% 
@@ -447,7 +427,7 @@ all_the_tables <- html %>%
   # putting together cases database, last update, and deaths
   ########################################################
   
-  out <- bind_rows(db_c6, db_drive_out) %>% 
+  out <- bind_rows(db_c2, db_drive_out) %>% 
     mutate(date_f = dmy(Date)) %>% 
     arrange(date_f, Sex, Measure, suppressWarnings(as.integer(Age))) %>% 
     select(Country,Region, Code,  Date, Sex, Age, AgeInt, Metric, Measure, Value)

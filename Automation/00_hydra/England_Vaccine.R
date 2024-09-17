@@ -13,18 +13,22 @@ ctr <- "England_Vaccine"
 dir_n <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 
 vacc <- read.csv("https://api.coronavirus.data.gov.uk/v2/data?areaType=nation&areaCode=E92000001&metric=vaccinationsAgeDemographics&format=csv")
 vacc <- vacc %>% 
-  select(Date = date, Age = age, Vaccination1 = cumPeopleVaccinatedFirstDoseByVaccinationDate, Vaccination2 = cumPeopleVaccinatedCompleteByVaccinationDate,
+  select(Date = date, Age = age, 
+         Vaccination1 = cumPeopleVaccinatedFirstDoseByVaccinationDate, 
+         Vaccination2 = cumPeopleVaccinatedCompleteByVaccinationDate,
          Vaccination3 = cumPeopleVaccinatedThirdInjectionByVaccinationDate)
 vacc_out <- melt(vacc, id = c("Date", "Age"))
 names(vacc_out)[3] <- "Measure"
 names(vacc_out)[4] <- "Value"
 vacc_out <- vacc_out %>% 
+  filter(Age != "75+") %>% 
   mutate(Age = case_when(
+    Age == "05_11" ~ "5",
     Age == "12_15" ~ "12",
     Age == "16_17" ~ "16",
     Age == "18_24" ~ "18",
@@ -43,6 +47,7 @@ vacc_out <- vacc_out %>%
     Age == "85_89" ~ "85",
     Age == "90+" ~ "90"),
     AgeInt = case_when(
+      Age == "5" ~ 7L,
       Age == "12" ~ 4L,
       Age == "16" ~ 2L,
       Age == "18" ~ 7L,
@@ -61,14 +66,8 @@ vacc_out <- vacc_out %>%
     Code = paste0("GB-ENG")) %>% 
   sort_input_data()
 
-small_ages <- vacc_out %>% 
-  filter(Age == "12") %>% 
-  mutate(Age = "0",
-         AgeInt = 12L,
-         Value = "0")
-
-vacc_out <- rbind(vacc_out, small_ages) %>% 
-  sort_input_data()
+##work on getting regional data
+#https://api.coronavirus.data.gov.uk/v2/data?areaType=region&metric=vaccinationsAgeDemographics&format=csv
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # uploading database to Google Drive and N
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -17,6 +17,9 @@ if (!"email" %in% ls()){
 ctr          <- "Uruguay_vaccine" # it's a placeholder
 dir_n        <- "N:/COVerAGE-DB/Automation/Hydra/"
 
+# Drive credentials
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 
 #read in data 
 
@@ -25,7 +28,8 @@ In= read.csv("https://raw.githubusercontent.com/3dgiordano/covid-19-uy-vacc-data
 #process
 
 Out_vaccine1= In %>%
-  select(Date= date, total_12_17, total_18_24, total_25_34, total_35_44, total_45_54,
+  select(Date= date, total_12_17, total_18_24, 
+         total_25_34, total_35_44, total_45_54,
          total_55_64, total_65_74, total_75_115)%>%
   pivot_longer(!Date, names_to= "Des", values_to= "Value")%>%
   separate(Des, c("A", "Age", "B"), "_")%>%
@@ -54,8 +58,10 @@ filter(!is.na(Value))#some of the most recent values have no entry
 
 
 Out_vaccine2= In%>%
-select(Date= date,total_fully_12_17,total_fully_18_24, total_fully_25_34, total_fully_35_44, total_fully_45_54, total_fully_55_64,
-                       total_fully_65_74, total_fully_75_115)%>%
+select(Date= date,total_fully_12_17,total_fully_18_24, 
+       total_fully_25_34, total_fully_35_44, 
+       total_fully_45_54, total_fully_55_64,
+       total_fully_65_74, total_fully_75_115)%>%
   pivot_longer(!Date, names_to= "Des", values_to= "Value")%>%
   separate(Des, c("A", "B","Age", "C"), "_")%>%
   select(Date, Age, Value)%>%

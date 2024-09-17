@@ -11,8 +11,8 @@ ctr <- "Ukraine"
 dir_n <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 today()
 at_rubric <- get_input_rubric() %>% filter(Short == "UA")
 ss_i   <- at_rubric %>% dplyr::pull(Sheet)
@@ -20,6 +20,9 @@ ss_db  <- at_rubric %>% dplyr::pull(Source)
 
 # loading INED data
 # ~~~~~~~~~~~~~~~~~
+
+# source_website <- "https://dc-covid.site.ined.fr/en/data/ukraine/"
+
 m_url     <- "https://dc-covid.site.ined.fr/en/data/pooled-datafiles/"
 html      <- read_html(m_url)
 # xpath extracted when inspecting the date element
@@ -50,7 +53,8 @@ deaths_ined <- db_age %>%
          m = cum_death_male, 
          f = cum_death_female, 
          b = cum_death_both) %>% 
-  mutate(Date = ddmmyyyy(Date)) %>% 
+  mutate(Date = dmy(Date),
+         Date = ddmmyyyy(Date)) %>% 
   filter(!Age %in% c("Total known", "Total unknown")) %>% 
   mutate(Age = str_sub(Age, 1, 2),
          Age = recode(Age,

@@ -1,7 +1,8 @@
 #Maldives 
 
 
-source("https://raw.githubusercontent.com/timriffe/covid_age/master/Automation/00_Functions_automation.R")
+#source("https://raw.githubusercontent.com/timriffe/covid_age/master/Automation/00_Functions_automation.R")
+source(here::here("Automation/00_Functions_automation.R"))
 library(here)
 library(readxl)
 library(lubridate)
@@ -25,8 +26,9 @@ dir_n_source <- "N:/COVerAGE-DB/Automation/Maldives" # <- that one is if
 ######################################### 
 
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
+
 
 # Drive urls
 rubric <- get_input_rubric() %>% filter(Short == "MV")
@@ -77,7 +79,11 @@ MV_cases= Maldives%>%
       is.na(Age) ~ "UNK",
       TRUE~ as.character(Age)),
     Date = dmy(Date)) %>% 
-  na.omit()
+  na.omit() %>% 
+  mutate(Age = case_when(
+    Age == "106" ~ "105",
+    TRUE ~ Age
+  )) 
 
 
 # TR:

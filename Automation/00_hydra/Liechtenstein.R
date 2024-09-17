@@ -22,8 +22,9 @@ dir_n        <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
+
 
 
 
@@ -38,7 +39,7 @@ ss_db <- rubric %>%
 
 
 #data download 
-
+#https://www.statistikportal.li/de/uebersichten-indikatoren/schwerpunkt-corona
 
 url <- "https://www.llv.li/files/as/grafik_covid19_alter_geschlecht_wohnort.xlsx"
 

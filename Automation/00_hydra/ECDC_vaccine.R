@@ -15,8 +15,8 @@ ctr          <- "ECDC_vaccine"
 dir_n <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 
 
 #Read in data 
@@ -30,7 +30,13 @@ Out= In %>%
   subset(Region== "BG"| Region== "CY" | Region== "HR"| Region== "HU"|  Region== "IE"| 
           Region== "LU" | Region== "MT" | Region== "RO"| Region== "PL" | Region == "EL" | 
            Region == "PT" | Region == "NO")%>%
-  select(YearWeekISO, Vaccination1= FirstDose, Vaccination2= SecondDose, Vaccination3= DoseAdditional1, Short=Region,TargetGroup)%>%
+  select(YearWeekISO, 
+         Vaccination1= FirstDose, 
+         Vaccination2= SecondDose, 
+         Vaccination3= DoseAdditional1, 
+         Vaccination4 = DoseAdditional2, 
+         Vaccinations = UnknownDose,
+         Short=Region,TargetGroup)%>%
   #remove category medical personnel and long term care residents 
   subset(TargetGroup != "HCW") %>%
   subset(TargetGroup != "LTCF")%>%

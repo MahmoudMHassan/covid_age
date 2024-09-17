@@ -11,8 +11,8 @@ ctr <- "Italy"
 dir_n <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 
 # links to spreadsheet in Drive
 # rubric_i <- get_input_rubric() %>% filter(Short == "IT")
@@ -29,9 +29,7 @@ gs4_auth(email = email)
 it <- read_rds(paste0(dir_n, ctr, ".rds"))
 
 it <- it %>% 
-  filter(Measure != "Vaccination1") %>% 
-  filter(Measure != "Vaccination2") %>% 
-  filter(Measure != "Vaccination3") 
+  filter(Measure == "Cases" | Measure == "Deaths")
   
   last_date_n <- it %>%
   mutate(date_f = dmy(Date)) %>%
@@ -51,10 +49,10 @@ date_f <- db_age %>% dplyr::pull(iss_date) %>% unique() %>% dmy
 if (date_f > last_date_n){
   
   db_age2 <- db_age %>% 
-    rename(Sex = 2,
-           Age = 3,
-           Deaths = 4, 
-           Cases = 5) %>% 
+    rename(Sex = SESSO,
+           Age = AGE_GROUP,
+           Deaths = DECEDUTI, 
+           Cases = CASI_CUMULATIVI) %>% 
     mutate(Sex = recode(Sex,
                         "M" = "m",
                         "F" = "f",
@@ -116,17 +114,22 @@ if (date_f > last_date_n){
 
 # Vaccination data
 
+## Source Website: https://github.com/italia/covid19-opendata-vaccini/
+
 vacc <- read_csv("https://raw.githubusercontent.com/italia/covid19-opendata-vaccini/master/dati/somministrazioni-vaccini-latest.csv")
 # write_rds(vacc, "")
 
 vacc2 <- vacc %>% 
-  rename(Date = 1,
-         Age = 4, 
-         Vaccination1 = prima_dose,
-         Vaccination2 = seconda_dose,
-         Vaccination3 = dose_addizionale_booster) %>% 
-  select(Date, Age, Vaccination1, Vaccination2, Vaccination3) %>% 
-  gather(Vaccination1, Vaccination2, Vaccination3, key = "Measure", value = new) %>% 
+  rename(Date = data,
+         Age = eta, 
+         Vaccination1 = d1,
+         Vaccination2 = d2,
+         Vaccination3 = db1,
+         Vaccination4 = db2) %>% 
+  select(Date, Age, Vaccination1, Vaccination2, 
+         Vaccination3, Vaccination4) %>% 
+  gather(Vaccination1, Vaccination2, Vaccination3, 
+         Vaccination4, key = "Measure", value = new) %>% 
   mutate(Age = as.integer(str_sub(Age, 1, 2))) %>% 
   group_by(Date, Measure, Age) %>% 
   summarise(new = sum(new)) %>% 
@@ -183,6 +186,9 @@ out <-
 
 out <- bind_rows(out, totals) %>% 
   unique() %>% 
+  # group_by(Country, Region, Code, Date, Sex, Age, AgeInt, Metric, Measure) %>% #this was a one time fix 
+  # summarise(Value = sum(Value)) %>% 
+  # ungroup() %>% 
   sort_input_data()
 nrow(out_drive)
 nrow(vacc3)

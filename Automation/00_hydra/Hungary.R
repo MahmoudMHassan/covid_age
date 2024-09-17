@@ -1,4 +1,3 @@
-
 library(here)
 source("https://raw.githubusercontent.com/timriffe/covid_age/master/Automation/00_Functions_automation.R")
 library(readxl)
@@ -16,8 +15,9 @@ dir_n        <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
+
 
 
 #Downloading deaths from the website 

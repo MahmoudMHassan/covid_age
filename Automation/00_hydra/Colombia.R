@@ -11,8 +11,8 @@ ctr <- "Colombia"
 dir_n <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 
 # Downloading data from the web
 ###############################
@@ -26,41 +26,23 @@ tests_url <- "https://www.datos.gov.co/api/views/8835-5baf/rows.csv?accessType=D
 data_source_c <- paste0(dir_n, "Data_sources/", ctr, "/cases_",today(), ".csv")
 data_source_t <- paste0(dir_n, "Data_sources/", ctr, "/tests_",today(), ".csv")
 
-download.file(cases_url, destfile = data_source_c)
+
+## MK, 06.07.2022: THE CASES file is too large, so will skip the temp file download and read it first and then save in data_source,
+
+#download.file(cases_url, destfile = data_source_c)
 download.file(tests_url, destfile = data_source_t)
 
 
 # Loading data in the session
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # cases and deaths database
-db <- read_csv(data_source_c,
+db <- read_csv(cases_url,
                locale = locale(encoding = "UTF-8"))
 
 # tests database
 db_m <- read_csv(data_source_t,
                  locale = locale(encoding = "UTF-8"))
 
-
-# compressing source files and cleaning stuff
-data_source <- c(data_source_c, data_source_t)
-
-zipname <- paste0(dir_n, 
-                  "Data_sources/", 
-                  ctr,
-                  "/", 
-                  ctr,
-                  "_data_",
-                  today(), 
-                  ".zip")
-
-zipr(zipname, 
-     data_source, 
-     recurse = TRUE, 
-     compression_level = 9,
-     include_directories = TRUE)
-
-# clean up file chaff
-file.remove(data_source)
 
 # data transformation for COVerAGE-DB
 #####################################
@@ -206,8 +188,10 @@ db_all2 <- db_all %>%
 db_inc2 <- db_inc %>% dplyr::pull(Region)
 
 db_m_reg <- db_m %>% 
-  mutate(date_f = ymd(str_sub(Fecha, 1, 10))) %>% 
-  drop_na(date_f) %>% 
+  mutate(date_sub = if_else(str_detect(Fecha, "/"), str_sub(Fecha, -10, -1), str_sub(Fecha, 1, 10)),
+         date_sub = str_replace_all(date_sub, "/", "-")) %>% 
+  mutate(date_f = lubridate::parse_date_time(date_sub, orders = c('ymd', 'dmy'))) %>% 
+ # drop_na(date_f) %>% 
   rename(All = Acumuladas,
          t1 = 'Positivas acumuladas',
          t2 = "Negativas acumuladas",
@@ -215,14 +199,17 @@ db_m_reg <- db_m %>%
          t4 = "Indeterminadas",
          t5 = "Procedencia desconocida") %>% 
   select(-c(Fecha, t1, t2, t3, t4, t5)) %>% 
-  gather(-date_f, key = "Region", value = "Value") %>% 
+  pivot_longer(cols = -c("date_f", "date_sub"), 
+               names_to = "Region", 
+               values_to = "Value") %>% 
   mutate(Measure = "Tests",
          Age = "TOT",
          Sex = "b",
          Region = case_when(Region == "Norte de Santander" ~ "Norte Santander",
                             Region == "Valle del Cauca" ~ "Valle",
                             Region == "Norte de Santander" ~ "Norte Santander",
-                            TRUE ~ Region)) %>% 
+                            TRUE ~ Region),
+         Value = as.integer(Value)) %>% 
   filter(Region %in% db_inc2,
          date_f >= "2020-03-20") %>% 
   select(Region, date_f, Sex, Age, Measure, Value) %>% 
@@ -230,6 +217,7 @@ db_m_reg <- db_m %>%
 
 unique(db_m_reg$Region) %>% sort()
 unique(db_all2$Region) %>% sort()
+
 
 # all data together in COVerAGE-DB format -----------------------------------
 out <- db_all2 %>%
@@ -298,5 +286,32 @@ write_rds(out, paste0(dir_n, ctr, ".rds"))
 
 # updating hydra dashboard
 log_update(pp = ctr, N = nrow(out))
-out %>% 
-  pull(Region) %>% unique()
+#out %>% 
+#  pull(Region) %>% unique()
+
+
+####====================####
+
+# compressing source files and cleaning stuff
+
+write_csv(db, file = data_source_c)
+
+data_source <- c(data_source_c, data_source_t)
+
+zipname <- paste0(dir_n, 
+                  "Data_sources/", 
+                  ctr,
+                  "/", 
+                  ctr,
+                  "_data_",
+                  today(), 
+                  ".zip")
+
+zipr(zipname, 
+     data_source, 
+     recurse = TRUE, 
+     compression_level = 9,
+     include_directories = TRUE)
+
+# clean up file chaff
+file.remove(data_source)

@@ -2,7 +2,7 @@
 source(here::here("Automation/00_Functions_automation.R"))
 #install.packages("archive")
 library(archive)
-#install.packages("archive")
+
 
 # assigning Drive credentials in the case the script is verified manually  
 if (!"email" %in% ls()){
@@ -14,8 +14,8 @@ ctr <- "Peru"
 dir_n <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 
 # load data
 m_url1 <- "https://www.datosabiertos.gob.pe/dataset/casos-positivos-por-covid-19-ministerio-de-salud-minsa"
@@ -45,9 +45,11 @@ data_source_v <- paste0(dir_n, "Data_sources/", ctr, "/vacc_",today(), ".7z")
 
 # EA: needed to add the index [1] because there is more than one link, while the first one is the 
 # full database that we need
-download.file(cases_url[1], destfile = data_source_c, mode = "wb")
-download.file(deaths_url[1], destfile = data_source_d, mode = "wb")
-download.file(vacc_url, destfile = data_source_v, mode = "wb")
+
+## MK: 06.07.2022: large file and give download error, so stopped this step and read directly instead
+#download.file(cases_url[1], destfile = data_source_c, mode = "wb")
+#download.file(deaths_url[1], destfile = data_source_d, mode = "wb")
+#download.file(vacc_url, destfile = data_source_v, mode = "wb")
 
 
 #JD: read in from Url was failing, I changed it to reading in the downloaded csv
@@ -60,10 +62,53 @@ download.file(vacc_url, destfile = data_source_v, mode = "wb")
 # Vaccines
 #db_v <- read_csv(data_source_v)
 
-db_c <- read.csv(data_source_c, sep = ";")
-db_d <- read.csv(data_source_d, sep = ";")
+#db_c <- read.csv(data_source_c, sep = ";")
+#db_d <- read.csv(data_source_d, sep = ";")
 #db_v <- read.csv(data_source_v, sep = ",")
-db_v=read_csv(archive_read(data_source_v), col_types = cols())
+#db_v=read_csv(archive_read(data_source_v), col_types = cols())
+#db_v <- read_csv(vacc_url)
+
+## MK: 07.07.2022: due to large file size (use fread to read first, and then write a copy), and 
+## .7z (vaccination file), we need to download it first then read.
+
+db_c <- bigreadr::fread2(cases_url[1], 
+                          select = c("FECHA_RESULTADO", "SEXO", "EDAD", "DEPARTAMENTO"))
+
+db_d <- data.table::fread(deaths_url[1],
+                          select = c("FECHA_FALLECIMIENTO", "SEXO", "EDAD_DECLARADA", "DEPARTAMENTO"))
+
+
+# cases ----------------------------------------------
+
+db_c2 <- db_c %>% 
+  rename(date_f = FECHA_RESULTADO,
+         Sex = SEXO,
+         Age = EDAD,
+         Region = DEPARTAMENTO) %>% 
+  select(date_f, Sex, Age, Region) %>% 
+  mutate(date_f = ymd(date_f),
+         Sex = case_when(Sex == "MASCULINO" ~ "m",
+                         Sex == "FEMENINO" ~ "f",
+                         TRUE ~ "UNK"),
+         Age = ifelse(Age > 100, 100, Age),
+         Region = str_to_title(Region)) %>% 
+  group_by(date_f, Sex, Age, Region) %>% 
+  summarise(new = n()) %>% 
+  ungroup()
+
+dates <- db_c2 %>% drop_na(date_f) %>% select(date_f) %>% unique()
+
+dates_f <- seq(min(dates$date_f),max(dates$date_f), by = '1 day')
+ages <- 0:100
+
+db_c3 <- db_c2 %>% 
+  tidyr::complete(Region, Sex, Age = ages, date_f = dates_f, fill = list(new = 0)) %>% 
+  group_by(Region, Sex, Age) %>% 
+  mutate(Value = cumsum(new),
+         Measure = "Cases") %>% 
+  ungroup() %>% 
+  select(-new)
+
 
 # deaths ----------------------------------------------
 
@@ -94,70 +139,10 @@ db_d3 <- db_d2 %>%
   ungroup() %>% 
   select(-new)
 
-# cases ----------------------------------------------
 
-db_c2 <- db_c %>% 
-  rename(date_f = FECHA_RESULTADO,
-         Sex = SEXO,
-         Age = EDAD,
-         Region = DEPARTAMENTO) %>% 
-  select(date_f, Sex, Age, Region) %>% 
-  mutate(date_f = ymd(date_f),
-         Sex = case_when(Sex == "MASCULINO" ~ "m",
-                         Sex == "FEMENINO" ~ "f",
-                         TRUE ~ "UNK"),
-         Age = ifelse(Age > 100, 100, Age),
-         Region = str_to_title(Region)) %>% 
-  group_by(date_f, Sex, Age, Region) %>% 
-  summarise(new = n()) %>% 
-  ungroup()
-
-dates <- db_c2 %>% drop_na(date_f) %>% select(date_f) %>% unique()
-
-dates_f <- seq(min(dates$date_f),max(dates$date_f), by = '1 day')
-
-db_c3 <- db_c2 %>% 
-  tidyr::complete(Region, Sex, Age = ages, date_f = dates_f, fill = list(new = 0)) %>% 
-  group_by(Region, Sex, Age) %>% 
-  mutate(Value = cumsum(new),
-         Measure = "Cases") %>% 
-  ungroup() %>% 
-  select(-new)
-
-# vaccines ---------------------------------------------------
-db_v2 <- db_v %>% 
-  select(Age = EDAD,
-         Sex = SEXO,
-         date_f = FECHA_VACUNACION,
-         Dosis = DOSIS,
-         Region = DEPARTAMENTO) %>% 
-  mutate(date_f = ymd(date_f),
-         Sex = case_when(Sex == "MASCULINO" ~ "m",
-                         Sex == "FEMENINO" ~ "f",
-                         TRUE ~ "UNK"),
-         Age = ifelse(Age > 100, 100, Age),
-         Region = str_to_title(Region),
-         Measure = case_when(Dosis == 1 ~ "Vaccination1", 
-                             Dosis == 2 ~ "Vaccination2", 
-                             Dosis == 3 ~ "Vaccination3",
-                             TRUE ~ "UNK")) %>% 
-  group_by(date_f, Sex, Age, Region, Measure) %>% 
-  summarise(new = n()) %>% 
-  ungroup() %>% 
-  filter(Measure != "UNK")
-
-dates_f <- seq(min(db_v2$date_f), max(db_v2$date_f), by = '1 day')
-ages <- 0:100
-
-db_v3 <- db_v2 %>% 
-  tidyr::complete(Measure, Region, Sex, Age = ages, date_f = dates_f, fill = list(new = 0)) %>% 
-  group_by(Region, Measure, Sex, Age) %>% 
-  mutate(Value = cumsum(new)) %>% 
-  ungroup() %>% 
-  select(-new)
 
 # template for database ------------------------------------------------------------
-db_dc <- bind_rows(db_d3, db_c3, db_v3)
+db_dc <- bind_rows(db_d3, db_c3)
 
 db_pe <- db_dc %>% 
   group_by(date_f, Sex, Age, Measure) %>% 
@@ -257,21 +242,29 @@ out <- db_all2 %>%
 #          Age == "TOT")
 
 #########################
-# save data in N: -------------------------------------------------
+# save processed data in N: -------------------------------------------------
 #########################
 
-write_rds(out, paste0(dir_n, ctr, ".rds"))
-
 log_update(pp = ctr, N = nrow(out))
+
+write_rds(out, paste0(dir_n, ctr, ".rds"))
 
 #########################
 # Push zip file to Drive -------------------------------------------------
 #########################
 
+
+# Saving original Cases & Deaths datafiles to N
+
+readr::write_csv(db_c, file = data_source_c)
+
+readr::write_csv(db_d, file = data_source_d)
+
+
 # saving compressed data to N: drive
 
 
-data_source <- c(data_source_c, data_source_d, data_source_v)
+data_source <- c(data_source_c, data_source_d)
 
 zipname <- paste0(dir_n, 
                   "Data_sources/", 

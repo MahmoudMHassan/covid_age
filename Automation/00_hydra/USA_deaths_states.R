@@ -11,8 +11,8 @@ ctr <- "USA_deaths_states"
 dir_n <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 
 # TR: pull urls from rubric instead 
 rubric_i <- get_input_rubric() %>% filter(Short == "USA_CDC")
@@ -28,8 +28,10 @@ db_drive <- read_rds(paste0(dir_n, ctr, ".rds"))
 # info by age for each state!!
 url <- "https://data.cdc.gov/api/views/9bhg-hcku/rows.csv?accessType=DOWNLOAD"
 data_source <- paste0(dir_n, "Data_sources/", ctr, "/deaths_",today(), ".csv")
-download.file(url, destfile = data_source)
-db <- read_csv(data_source)
+
+## MK: 06.07.2022: large file and give download error, so stopped this step and read directly instead
+#download.file(url, destfile = data_source)
+db <- read_csv(url)
 
 unique(db$`Age Group`)
 unique(db$`Group`)
@@ -38,9 +40,11 @@ ages_all <- c("All Ages", "Under 1 year", "0-17 years", "1-4 years",
               "5-14 years", "15-24 years", "18-29 years", "25-34 years", 
               "30-49 years", "35-44 years", "45-54 years", "50-64 years", 
               "55-64 years", "65-74 years", "75-84 years", "85 years and over")
+
 ages1 <- c("All Ages", "Under 1 year", "1-4 years", "5-14 years", 
            "15-24 years", "25-34 years", "35-44 years", "45-54 years", 
            "55-64 years", "65-74 years", "75-84 years", "85 years and over")
+
 ages2 <- c("All Ages", "0-17 years", "18-29 years", "30-49 years", 
            "50-64 years", "65-74 years", "75-84 years", "85 years and over")
 
@@ -80,7 +84,8 @@ all <- db3 %>%
 vs <- all %>% 
   left_join(no_nas) %>% 
   mutate(difs = all - no_na,
-         prop = no_na / all)
+         prop = no_na / all) %>% 
+  arrange(prop)
 
 # All states above 90% of ages identified when using wide age groups, 
 
@@ -215,7 +220,7 @@ db5 <- db4 %>%
                            State == 'New Jersey' ~ 'US-NJ',
                            State == 'New Mexico' ~ 'US-NM',
                            State == 'New York' ~ 'US-NY',
-                           State == 'New York City' ~ 'US-NYC',
+                           State == 'New York City' ~ 'US-NYC+',
                            State == 'North Carolina' ~ 'US-NC',
                            State == 'North Dakota' ~ 'US-ND',
                            State == 'Ohio' ~ 'US-OH',
@@ -241,22 +246,24 @@ db5 <- db4 %>%
                            State == 'Puerto Rico' ~ 'US-PR',
                            State == 'United States Minor Outlying Islands' ~ 'US-UM',
                            State == 'U.S. Virgin Islands' ~ 'US-VI'),
-         AgeInt = case_when(Age == "0" ~ "1",
-                            Age == "1" ~ "4",
-                            Age == "85" ~ "20",
-                            Age == "TOT" ~ "",
-                            TRUE ~ "10"),
+         AgeInt = case_when(Age == "0" ~ 1L,
+                            Age == "1" ~ 4L,
+                            Age == "85" ~ 20L,
+                            Age == "TOT" ~ NA_integer_,
+                            TRUE ~ 10L),
          Metric = "Count",
          Measure = "Deaths") %>% 
   select(Country, Region, Code,  Date, Sex, Age, AgeInt, Metric, Measure, Value) %>% 
   arrange(Region, Measure, Sex, suppressWarnings(as.integer(Age)))
   
 out <- db_drive %>% 
-  filter(Date != date_data) %>% 
-  mutate(AgeInt = as.character(AgeInt)) %>% 
+  dplyr::filter(Date != date_data) %>% 
+  mutate(AgeInt = as.integer(AgeInt)) %>% 
   #select(-Short) %>% 
   bind_rows(db5) %>% 
-  filter(Code != "US-MI") %>% ##deaths for michigan are collected from the national source
+  # TR: any other filters to add here. We have deaths coming in from other states too, 
+  # like CA, Ohio, NYC, and others.Just to avoid duplicates.
+  dplyr::filter(Code != "US-MI") %>% ##deaths for michigan are collected from the national source
   sort_input_data() %>% 
   unique()
 
@@ -266,9 +273,9 @@ unique(out$Date)
 ############################################
 #### uploading database to Google Drive ####
 ############################################
-write_sheet(out,
-             ss = ss_i,
-             sheet = "database")
+# write_sheet(out,
+#              ss = ss_i,
+#              sheet = "database")
 
 write_rds(out, paste0(dir_n, ctr, ".rds"))
 log_update(pp = ctr, N = nrow(out))

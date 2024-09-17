@@ -18,8 +18,7 @@
 #Tennessee	TN
 #Virginia	VA
 
-library(here)
-source("https://raw.githubusercontent.com/timriffe/covid_age/master/Automation/00_Functions_automation.R")
+source(here::here("Automation/00_Functions_automation.R"))
 
 library(dplyr)
 library(lubridate)
@@ -30,48 +29,49 @@ library(arrow)
 if (!"email" %in% ls()){
   email <- "maxi.s.kniffka@gmail.com"
 }
-gs4_auth(email = email)
 
-ctr          <- "US_CDC_cases_state" # it's a placeholder
-dir_n        <- "N:/COVerAGE-DB/Automation/Hydra/"
-
-# Read in data 
+# Drive credentials
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 
 
-# data1 <- read.csv(file= 'K:/CDC_Covid/covid_case_restricted_detailed-master_06_2021/data/2021-06-21/COVID_Cases_Restricted_Detailed_06212021_Part_1.csv', 
-#                   fileEncoding="UTF-8-BOM", na.strings=c('NA','','Missing'))
-# str(data1)
-# 
-# data2 <- read.csv(file= 'K:/CDC_Covid/covid_case_restricted_detailed-master_06_2021/data/2021-06-21/COVID_Cases_Restricted_Detailed_06212021_Part_2.csv',
-#                   fileEncoding="UTF-8-BOM",  na.strings=c('NA','','Missing')) 
-# 
-# str(data2)
-# 
-# data3 <- read.csv(file= 'K:/CDC_Covid/covid_case_restricted_detailed-master_06_2021/data/2021-06-21/COVID_Cases_Restricted_Detailed_06212021_Part_3.csv',
-#                   fileEncoding="UTF-8-BOM",  na.strings=c('NA','','Missing')) 
-# 
-# str(data3)
-# 
-# data4 <- read.csv(file= 'K:/CDC_Covid/covid_case_restricted_detailed-master_06_2021/data/2021-06-21/COVID_Cases_Restricted_Detailed_06212021_Part_4.csv',
-#                   fileEncoding="UTF-8-BOM",  na.strings=c('NA','','Missing')) 
+ctr <- "US_CDC_cases_state" # it's a placeholder
+dir_n <- "N:/COVerAGE-DB/Automation/Hydra/"
+dir_k <- "K:/CDC_Covid/"
+
+# folder name, this changes 
+
+folder <- "covid_case_restricted_detailed-master_06_09_2022" ## to change every update/ download of the data
 
 
-#read in data faster 
+# Read in files names 
 
-data1=read_parquet("K:/CDC_Covid/covid_case_restricted_detailed-master_03_01_2022/COVID_Cases_Restricted_Detailed_01032022_Part_1.parquet")
-data2=read_parquet("K:/CDC_Covid/covid_case_restricted_detailed-master_03_01_2022/COVID_Cases_Restricted_Detailed_01032022_Part_2.parquet")
-data3=read_parquet("K:/CDC_Covid/covid_case_restricted_detailed-master_03_01_2022/COVID_Cases_Restricted_Detailed_01032022_Part_3.parquet")
+files_list <- list.files(
+  path= paste0(dir_k, folder),
+  pattern = ".parquet",
+  full.names = TRUE)
+
+
+read_par <- function(file_name){
+  read_parquet(file_name,
+               col_select = c("cdc_case_earliest_dt", "sex", "age_group", "res_state"))
+}
+
+## After reading, validate the number of rows as per mentione din GitHub repo
+  
+raw_data <- files_list %>% 
+  map_dfr(read_par)
+
 
 
 # Add datasets vertically
-IN <- rbind(data1, data2, data3)
 
-rm(data1,data2);gc()
-glimpse(IN)
+#rm(data1,data2,data3, data4);gc()
+glimpse(raw_data)
 states <- c("AZ","AR", "DE","GU","ID","KS","ME","MA","MN","MT","NV","NJ","NC","OK","OR","PA","SC","TN","VA", "IL")
 
-Out <-
-  IN %>%
+Out1 <-
+  raw_data %>%
   filter(res_state %in% states) %>%
   select(Date = cdc_case_earliest_dt, 
          Sex = sex, 
@@ -107,42 +107,101 @@ Out <-
                   `80+ Years`="80",
                   `Missing`="UNK",
                   `NA`="UNK")) %>% 
-  group_by(Date, Sex, State) %>% 
+  group_by(Date, Age, Sex, State) %>% 
   summarise(Value = sum(Value))
+
+Out <- Out1 %>% 
   mutate(AgeInt = case_when(
-    Age == "80" ~ 25L,
-    Age == "UNK" ~ NA_integer_,
-    TRUE ~ 10L))%>% 
-mutate(
-  Measure = "Cases",
-  Metric = "Count",
-  Country = "USA") %>% 
-  mutate(
+         Age == "80" ~ 25L,
+         Age == "UNK" ~ NA_integer_,
+         TRUE ~ 10L),
+    Measure = "Cases",
+    Metric = "Count",
+    Country = "USA",
     Date = ymd(Date),
     Date = paste(sprintf("%02d",day(Date)),    
                  sprintf("%02d",month(Date)),  
                  year(Date),sep="."),
-    Region= recode(State, 
-                   `AZ` = "Arizona",
-                   `AR`= "Arkansas",	
-                   `DE`= "Delaware",
-                   `GU`=  "Guam",
-                   `ID`= "Idaho",
-                   `KS`= "Kansas",	
-                   `ME`=  "Maine",	
-                   `MA`=  "Massachusetts",	
-                   `MN`=  "Minnesota",	
-                   `MT`=  "Montana",	
-                   `NV`=  "Nevada",	
-                   `NJ`=  "New Jersey",	
-                   `NC`=  "North Carolina",	
-                   `OK`=  "Oklahoma",	
-                   `OR`=  "Oregon",	
-                   `PA`=  "Pennsylvania",	
-                   `SC`= "South Carolina",	
-                   `TN`= "Tennessee",	
-                   `VA`=  "Virginia",
-                   `IL`= "Illinois"),
+    Region= case_when( 
+              State == "AZ" ~ "Arizona",
+              State == "AR" ~ "Arkansas",
+              State == "DE" ~ "Delaware",
+              State == "GU" ~  "Guam",
+              State == "ID" ~ "Idaho",
+              State == "KS" ~ "Kansas",
+              State == "ME" ~  "Maine",
+              State == "MA" ~  "Massachusetts",
+              State == "MN" ~  "Minnesota",
+              State == "MT" ~  "Montana",
+              State == "NV" ~  "Nevada",
+              State == "NJ" ~  "New Jersey",
+              State == "NC" ~  "North Carolina",
+              State == "OK" ~  "Oklahoma",
+              State == "OR" ~  "Oregon",
+              State == "PA" ~  "Pennsylvania",
+              State == "SC" ~ "South Carolina",
+              State == "TN" ~ "Tennessee",
+              State == "VA" ~  "Virginia",
+              State == "IL" ~ "Illinois"),
+                   ## states abbs
+             #    State == "AK" ~ "Alaska",
+             #    State == "AL" ~ "Alabama",
+             #    State == "AR" ~ "Arkansas",
+             #    State == "AZ" ~ "Arizona",
+             #    State == "BP2"~ "Bureau of Prisons",
+             #    State == "CA" ~ "California",
+             # #   State == "CA."~ "California",
+             #    State == "CO" ~ "Colorado",
+             #    State == "CT" ~ "Connecticut",
+             #    State == "DC" ~ "District of Columbia",
+             #    State == "DE" ~ "Delaware",
+             #    State == "FL" ~ "Florida",
+             #    State == "GA" ~ "Georgia",
+             #    State == "GU" ~ "Guam",
+             #    State == "HI" ~ "Hawaii",
+             #    State == "IA" ~ "Iowa",
+             #    State == "ID" ~ "Idaho",
+             #    State == "IL" ~ "Illinois",
+             #    State == "IN" ~ "Indiana",
+             #    State == "KS" ~ "Kansas",
+             #    State == "KY" ~ "Kentucky",
+             #    State == "LA" ~ "Louisiana",
+             #    State == "MA" ~ "Massachusetts",
+             #    State == "MD" ~ "Maryland",
+             #    State == "ME" ~ "Maine",
+             #    State == "MI" ~ "Michigan",
+             #    State == "MN" ~ "Minnesota",
+             #    State == "MO" ~ "Missouri",
+             #    State == "MP" ~ "Northern Mariana Islands",
+             #    State == "MS" ~ "Mississippi",
+             #    State == "MT" ~ "Montana",
+             #    State == "NC" ~ "North Carolina",
+             #    State == "ND" ~ "North Dakota",
+             #    State == "NE" ~ "Nebraska",
+             #    State == "NH" ~ "New Hampshire",
+             #    State == "NJ" ~ "New Jersey",
+             #    State == "NM" ~ "New Mexico",
+             #    State == "NV" ~ "Nevada",
+             #    State == "NY" ~ "New York State",
+             #    State == "OH" ~ "Ohio",
+             #    State == "OK" ~ "Oklahoma",
+             #    State == "OR" ~ "Oregon",
+             #    State == "PA" ~ "Pennsylvania",
+             #    State == "PR" ~ "Puerto Rico",
+             #    State == "RI" ~ "Rhode Island",
+             #    State == "SC" ~ "South Carolina",
+             #    State == "SD" ~ "South Dakota",
+             #    State == "TN" ~ "Tennessee",
+             #    State == "TX" ~ "Texas",
+             #    State == "UT" ~ "Utah",
+             #    State == "VA" ~ "Virginia",
+             #    State == "VI" ~ "Virgin Islands",
+             #    State == "VT" ~ "Vermont",
+             #    State == "WA" ~ "Washington",
+             #    State == "WI" ~ "Wisconsin",
+             #    State == "WV" ~ "West Virginia",
+             #    State == "WY" ~ "Wyoming",
+             #    State == "NA" ~ "Unknown"),
     Code= paste0 ("US-", State)) %>% 
   select(Country, Region, Code, Date, Sex, 
          Age, AgeInt, Metric, Measure, Value)

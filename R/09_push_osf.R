@@ -9,7 +9,7 @@ logfile <- here::here("buildlog.md")
 
 log_section("push outputs to OSF", append = TRUE, logfile = logfile)
 
-files_data <- c("inputDB","Output_5","Output_10") # TR: add quality metrics after it's vetted
+files_data <- c("inputDB","Output_5","Output_10","qualityMetrics") # TR: add quality metrics after it's vetted
 for (fl in files_data){
   zip::zip(here::here("Data", paste0(fl,".zip")), 
          files = file.path("Data", paste0(fl,".csv")), 
@@ -25,6 +25,9 @@ files_data_zipped <- paste0(files_data, ".zip")
 
 # Get directory on OSF
 
+manual_osf <- TRUE
+if (!manual_osf){
+
 target_dir <- osf_retrieve_node("mpwjq") %>% 
   osf_ls_files(pattern = "Data") 
 
@@ -37,7 +40,7 @@ for (i in 1:length(files)){
              conflicts = "overwrite")  
   Sys.sleep(2)
 }
-
+}
 # for (i in 1:length(files)){
 #   osf_upload(target_dir,
 #              path = files[i],
@@ -49,7 +52,7 @@ for (i in 1:length(files)){
 cdb_files <- c("inputDB.csv","inputDB_internal.csv","inputDBhold.csv","inputDB_failures.csv",
                 "inputCounts.csv","Output_5.csv","Output_5_internal.csv",
                 "Output_10.csv","Output_10_internal.csv","Offsets.csv",
-               "HarmonizationFailures.csv") #a dd quality metrics later
+               "HarmonizationFailures.csv","qualityMetrics.csv") #a dd quality metrics later
 files_from <- file.path("Data",cdb_files)
 
 file.copy(from = files_from, 

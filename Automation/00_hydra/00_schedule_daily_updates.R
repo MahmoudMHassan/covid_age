@@ -26,14 +26,21 @@ auto_update_wd <- here()
 if (grepl("riffe", auto_update_wd)){
    auto_update_email <- "tim.riffe@gmail.com"   
 }
-if (grepl("gits", auto_update_wd)){
-  auto_update_email <- "kikepaila@gmail.com"
-}
 if (grepl("Git04", auto_update_wd)){
   auto_update_email <- "jessica_d.1994@yahoo.de"
 }
+
+if (grepl("gits", auto_update_wd)){
+  auto_update_email <- "kikepaila@gmail.com"
+}
 if (grepl("gits", auto_update_wd)){
   auto_update_email <- "maxi.s.kniffka@gmail.com"
+}
+
+## Sys.setenv(email = "mumanal.k@gmail.com")
+
+if (grepl("gits", auto_update_wd)){
+  auto_update_email <- "mumanal.k@gmail.com"
 }
 
 # sched() is a funtion that generates and schedules a trigger script 
@@ -62,42 +69,76 @@ if (grepl("gits", auto_update_wd)){
 
 
 # To see the list of scheduled tasks
-taskscheduler_ls() %>% view()
-tasks <- taskscheduler_ls()
+#taskscheduler_ls() %>% view()
+tasks <- 
+  taskscheduler_ls() %>% 
+  filter(str_sub(TaskName, 1, 8) == "coverage")
 # ~~~~~~~~~~~~~~~~
 # Scheduling tasks 
 # ~~~~~~~~~~~~~~~~
 
 # list of all available scripts to schedule
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-scripts <- c('US_Virginia', 'USA_all_deaths', 'Netherlands', 'Estonia', 
-             'Czechia', 'US_Michigan', 'Venezuela', 'US_Texas', 
-             'USA_deaths_states', 'Sweden', 'Peru', 'Germany', 
-             'US_Massachusetts', 'Colombia', 'US_NYC', 'Austria', 'Philippines', 
-             'Scotland', 'Norway', 'US_California', 'Afghanistan', 'Finland', 
-             'US_Wisconsin', 'Bulgaria', 'Denmark', 'Belgium', 'New_Zealand', 
-             'Mexico', 'Thailand', 'Spain', 'US_Oregon', 'Slovakia', 'Cambodia', 
-             'Hungary', 'Vietnam', 'Italy', 'Croatia',  
+scripts <- c('Peru', 'PeruVaccine' , 'Afghanistan', 
+             'Argentina', 'AU_New_South_Wales',
+             'AustraliaEpi', 'Australia_vaccine', 'Austria', 
+             'Bulgaria',  'Belgium', 'CanadaPDFs',
+             'Czechia', 'Colombia', 'Cambodia', 'Croatia', 
              'CA_Manitoba_Saskatchewan', 'CA_Ontario', 'CA_British_Columbia', 
-             'Ukraine', 'Spain_vaccine', 'Chile_vaccine', 'Portugal_Vaccine', 
-             'CA_Alberta', 'Canada_vaccine', 'US_Texas_Vaccine', 
-             'Hong_Kong_Vaccine','Argentina','Slovenia', 'US_Maine','US_NYC_vaccine',
-             'US_Vermont_Vaccine', 'US_Indiana','Lithuania_vaccine','US_Michigan_vaccine',
-             'US_Minnesota_vaccine', 'Slovenia_vaccine', 'US_Oregon_Vaccine', 'Latvia_vaccine',
-             'Island_of_Jersey', 'Estonia_vaccine', 'Uruguay_vaccine', 'Chile','Finland_vaccine',
-             'ECDC_vaccine', 'Slovakia_vaccine', 'Germany_vaccine', 'US_Pennsylvania_vaccine', 'USA_vaccine',
-             'Australia_vaccine', 'US_Idaho', 'USA_all', 'Brazil', 'New_Zealand', 'Maldives', 'Japan', 
-             'Romania', 'Puerto_Rico', 'Scotland_Vaccine', 'Switzerland_Vaccine', 'Norway_Vaccine', 'France_Vaccine',
-             'England_Vaccine', 'England', 'England_and_Wales', 'Togo', 'Netherlands_Vaccine')
+             'CA_Alberta', 'Chile', 'CA_Manitoba', 
+             'Chile_vaccine', 'Canada_vaccine', 'Costa_Rica_Vaccine', 
+             'Denmark',
+             'Estonia', 'England', 'England_and_Wales',
+             'Estonia_vaccine', 'ECDC_vaccine', 'England_Vaccine', 
+             'Finland', 'Finland_vaccine', 'FranceEpi', 'France_Vaccine',
+             'GeorgiaVaccine',
+             'Germany', 'Germany_vaccine', 'GreecePDFs', 'Guatemala',
+             'Haiti', 'Hungary', 'Hong_Kong_Vaccine',
+             'IndiaVax',
+             'Italy', 'Ireland', 'Italy_reg', 'Island_of_Jersey', 'Israel',
+             'Japan',
+             'Lithuania_vaccine', 'Latvia_vaccine',
+             'Mexico', 'Maldives', 'Malaysia', 'Mozambique',
+             'Nepal', 'Nigeria',
+             'Norway',  'Netherlands', 'New_Zealand',  
+             'Norway_Vaccine', 'Netherlands_Vaccine', 
+             'Philippines', 'Puerto_Rico', 
+             'Portugal_Vaccine', # does not work
+             'Romania', 
+             'Spain', 'Spain_vaccine',
+             'Scotland', 'Scotland_Vaccine', 
+             'Slovakia',  'Slovenia', 
+             'Slovenia_vaccine', 'Slovakia_vaccine', 
+             'Somalia', 'SouthAfrica', 'SouthKorea', 'SriLankaPDFs',
+             'Sweden', 
+             'Switzerland_Vaccine',
+             'Togo', 'Taiwan', 
+             'Thailand', # does not work
+             'Uruguay_vaccine', 'Ukraine', 
+             'US_Indiana', 'US_Maine', 'US_Massachusetts',  'US_NYC',
+             'US_California', 'US_Wisconsin', 'US_Oregon', 'US_Michigan', 
+             'US_Virginia', 'US_Idaho', 'US_Texas', 
+             'US_Michigan_vaccine','US_Minnesota_vaccine', 'US_Oregon_Vaccine',
+             'US_Pennsylvania_vaccine', 'US_Maine_Vaccine',
+             'US_NYC_vaccine', 'US_Vermont_Cases', 
+             'US_Vermont_Vaccine', 'US_Texas_Vaccine',
+             'USA_cases_all', 
+             'USA_deaths_all', 'USA_deaths_states',
+             'USA_vaccine', 'USA_vaccine_states',
+             'Vietnam', # does not work
+             'Venezuela')
 
+# scripts <- c('USA_cases_all', 'USA_cases_states', 'USA_deaths_all', 'USA_deaths_states')
+# scripts <- c('USA_cases_all', 'USA_deaths_all')
+scripts %>% sort
 # Scheduling all scripts at once
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # starting time for first schedule in hour and minutes
-h_ini <- 08
-m_ini <- 40
+h_ini <- 06
+m_ini <- 00
 # delay between scripts in minutes
-delay_time <- 8
+delay_time <- 5
 
 i <- 0
 for(c in scripts){
@@ -123,7 +164,23 @@ for(c in scripts){
 # for individual scheduling
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-sched("Island_of_Jersey", tm = "14:48", email = auto_update_email, wd = auto_update_wd)
+sched("Israel", tm = "14:57", email = auto_update_email, wd = auto_update_wd)
+sched("Italy", tm = "15:55", email = auto_update_email, wd = auto_update_wd)
+sched('Germany_vaccine', tm = "14:45", email = auto_update_email, wd = auto_update_wd)
+sched('Peru', tm = "15:47", email = auto_update_email, wd = auto_update_wd)
+sched("USA_deaths_states", tm = "15:32", email = auto_update_email, wd = auto_update_wd)
+sched("US_Wisconsin", tm = "14:55", email = auto_update_email, wd = auto_update_wd)
+sched('Italy', tm = "14:57", email = auto_update_email, wd = auto_update_wd)
+sched('Canada_vaccine', tm = "15:00", email = auto_update_email, wd = auto_update_wd)
+sched("Lithuania_vaccine", tm = "15:03", email = auto_update_email, wd = auto_update_wd)
+sched("Latvia_vaccine", tm = "15:05", email = auto_update_email, wd = auto_update_wd)
+sched('USA_vaccine', tm = "15:07", email = auto_update_email, wd = auto_update_wd)
+sched('Japan', tm = "15:09", email = auto_update_email, wd = auto_update_wd)
+sched("Puerto_Rico", tm = "15:10", email = auto_update_email, wd = auto_update_wd)
+sched("England_Vaccine", tm = "15:12", email = auto_update_email, wd = auto_update_wd)
+sched('England', tm = "15:15", email = auto_update_email, wd = auto_update_wd)
+sched('Ireland', tm = "15:17", email = auto_update_email, wd = auto_update_wd)
+sched("Togo", tm = "15:20", email = auto_update_email, wd = auto_update_wd)
 
 #sch = "WEEKLY"
 
@@ -136,13 +193,15 @@ sched("Island_of_Jersey", tm = "14:48", email = auto_update_email, wd = auto_upd
 # taskscheduler_delete("COVerAGE-DB-automatic-daily-build")
 # taskscheduler_delete("COVerAGE-DB-every-8-hour-inputDB-updates")
 
-delete_sched("England_and_Wales")
+delete_sched("US_Massachusets")
 
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # danger zone!!!! deleting all scheduled tasks
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts <- c('USA_all', 'USA_all_deaths')
+
 for(c in scripts){
   delete_sched(c)
 }

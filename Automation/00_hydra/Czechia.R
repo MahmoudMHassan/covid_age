@@ -1,3 +1,7 @@
+# TODO on next edit, make Age character from the start,
+# and detect NA as UNK rather than throwing out. Very
+# small numbers, but still..
+
 library(here)
 source(here("Automation/00_Functions_automation.R"))
 
@@ -20,8 +24,8 @@ ctr <- "Czechia"
 dir_n <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 
 ###########################################
 ################ CASES ####################
@@ -51,6 +55,11 @@ cases_url <- "https://onemocneni-aktualne.mzcr.cz/api/v2/covid-19/osoby.csv"
 
 
 cz_cases <- read_csv(cases_url) # note id col is now in front, and other
+
+# Only 4 unk age cases, for now just throw out rather than re-write code.
+# TODO: change Age to be character from the start, detect UNK, and use this code
+cz_cases <- cz_cases %>% 
+  dplyr::filter(!is.na(vek))
 # column order should be checked. read_csv() gives us these names:
  # "id","datum","vek","pohlavi","kraj_nuts_kod",
  # "okres_lau_kod","nakaza_v_zahranici" , "nakaza_zeme_csu_kod", "reportovano_khs"
@@ -64,7 +73,7 @@ cz_cases2 <-
 
 # cz_cases2 %>%  dplyr::pull("Age") %>%  unique()
 
-Ages_All <- c(0,1,seq(5,100,by=5))
+Ages_All <-  c(0,1,seq(5,100,by=5))
 DateRange <- range(cz_cases2$Date)
 Dates_All <- seq(DateRange[1],DateRange[2],by="days")
 
@@ -81,6 +90,9 @@ cz_cases_region_ss <-
                          Age >= 100 ~ 100,
                          TRUE ~ Age - Age %% 5),
          Code = ifelse(is.na(Code),"UNK",Code)) %>% 
+  mutate(Age = as.character(Age),
+         Age = case_when(is.na(Age) ~ "UNK",
+                         TRUE ~ Age)) %>% 
   ### select
   select(Code, Date, Sex, Age) %>% 
   group_by(Code, Date, Age, Sex) %>% 
@@ -89,13 +101,13 @@ cz_cases_region_ss <-
   tidyr::complete(
     Code = CZNUTS3$Code, 
     Date = Dates_All, 
-    Age = Ages_All, 
+    Age, 
     Sex, 
     fill = list(Value = 0)) %>% 
   arrange(Sex, Age, Date) %>% 
   group_by(Sex, Age) %>% 
   mutate(Value = cumsum(Value)) %>%  # cumulative!
-  ungroup() %>% 
+  ungroup() %>%  
   arrange(Code, Date, Sex, Age) %>% 
   mutate(Country = "Czechia",
          AgeInt = case_when(Age == 0 ~ 1,
@@ -104,7 +116,6 @@ cz_cases_region_ss <-
          Metric = "Count", 
          Measure = "Cases",
          Date = ddmmyyyy(Date)) %>% 
-  mutate(Age= as.character(Age)) %>% 
   left_join(CZNUTS3, by = "Code") %>% 
   select(Country, 
          Region = `Natural Region Names`,
@@ -134,7 +145,9 @@ deaths_url <- "https://onemocneni-aktualne.mzcr.cz/api/v2/covid-19/umrti.csv"
 
 # TR: 7 Dec, 2021: this should be read in using read_csv() and colnames matched using select(),
 # as in the above for cases.
-cz_deaths_in <- read_csv(deaths_url)
+cz_deaths_in <- read_csv(deaths_url) %>% 
+  # TR: as of 25.3.2022 this deletes no rows, but just in case
+  dplyr::filter(!is.na(vek))
 
 cz_deaths2 <-
   cz_deaths_in %>% 

@@ -12,8 +12,12 @@ ctr <- "CA_Quebec"
 dir_n <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
+
+## MK: Source Links:
+# https://www.inspq.qc.ca/covid-19/donnees
+# https://www.inspq.qc.ca/covid-19/donnees/age-sexe/situation
 
 source_dir <- "U:/nextcloud/Projects/COVID_19/COVerAGE-DB/CA_Quebec/"
 # source_dir <- "C:/Users/kikep/nextcloud/Projects/COVID_19/COVerAGE-DB/CA_Quebec/"

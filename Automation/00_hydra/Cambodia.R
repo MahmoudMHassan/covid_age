@@ -9,8 +9,8 @@ ctr <- "Cambodia"
 dir_n <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 
 db <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vQkLytTn5lDnsOht865NZRmypUBQKZDN5Sf9RLVs11O9f1AbmF_ZhA53sErE2tG637HtOABPoaEX1Fn/pub?gid=0&single=true&output=csv")
 
@@ -153,6 +153,7 @@ out <- bind_rows(db_c2, db_d2) %>%
          Date = ddmmyyyy(Date),
          Code = paste0("KH"),
          Metric = "Count") %>% 
+  filter(!is.na(Age)) %>% 
   sort_input_data()
 
 #### saving database in N Drive ####

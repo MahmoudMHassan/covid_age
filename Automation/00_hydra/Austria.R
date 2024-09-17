@@ -12,8 +12,8 @@ dir_n <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 print(today())
 
-googledrive::drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 
 # TR: pull urls from rubric instead 
 at_rubric <- get_input_rubric() %>% filter(Short == "AT")
@@ -68,7 +68,10 @@ db_age2= db_age%>%
 
 ### vaccination data ###
 ########################
+
+## Source: https://info.gesundheitsministerium.at/opendata#COVID19_vaccination_doses_agegroups
 vacc <- read_delim("https://info.gesundheitsministerium.gv.at/data/timeline-eimpfpass.csv", delim = ";")
+
 
 vacc2 <- vacc %>% 
   select(Datum, Name, BundeslandID, Teilgeimpfte, Vollimmunisierte, starts_with("Gruppe")) %>% 
@@ -109,6 +112,8 @@ vacc_all_sex <- vacc2 %>%
   ungroup() %>% 
   mutate(Sex = "b")
 
+
+
 vacc3 <- vacc2 %>% 
   filter(Sex != "o") %>% 
   bind_rows(vacc_all_sex) %>% 
@@ -128,11 +133,111 @@ vacc3 <- vacc2 %>%
   )) %>% 
   sort_input_data()
 
+####################### ========
 
-#Archive vaccine data 
+## MK in 26.07.2022
+## IN 29.06.2022, Austria changed the published data to update daily. Also, changes on number of doses and the way they report.
+## As a result, we have a gap from 15.12.2021 till 25.07.2022- however, they mentioned that the archive data will be uploaded shortly
+## TODO: needs revisiting. In order to lessen lose the data, the following is to download the recent data and append daily. 
+## Noting that we have a missing data gap. 
+## the vaccine data are updated each day so: we filter the archived data for >= 25.07.2022 and append to the historical & recent data
 
-data_source_vacc <- paste0(dir_n, "Data_sources/", ctr, "/vaccine_age_",today(), ".csv")
+vacc_archive_2022 <- readRDS(paste0(dir_n, ctr,".rds")) %>% 
+  mutate(Date = dmy(Date)) %>% 
+  filter(str_detect(Measure, "Vaccin"),
+         Date >= "2022-07-25") %>% 
+  mutate(Date = ddmmyyyy(Date),
+         AgeInt = case_when(Age == "UNK" ~ NA_integer_,
+                            TRUE ~ AgeInt)) %>% 
+  mutate(Region = case_when(
+    Region == "Ã–sterreich" ~ "All",
+    Region == "KÃ¤rnten" ~ "Kärnten",
+    Region == "NiederÃ¶sterreich" ~ "Niederöstereich",
+    Region == "OberÃ¶sterreich" ~ "Oberösterreich",
+    TRUE ~ Region),
+    Measure = case_when(
+      Measure == "Vaccination5+" ~ "Vaccination5",
+      TRUE ~ Measure))
+
+
+vacc_today <- read.csv2("https://info.gesundheitsministerium.at/data/COVID19_vaccination_doses_agegroups_v202206.csv") 
+
+vacc_recent <- vacc_today %>% 
+  select(Date = 1, 
+         state_id, 
+         Region = state_name, 
+         Age = age_group, Sex = gender, 
+         Measure = dose_number,
+         Value = doses_administered_cumulative) %>% 
+  mutate(Date = ymd(str_sub(Date, 1, 10)),
+         Age = recode(Age,
+                      "00-11" = "0",
+                      "12-14" = "12",
+                      "15-24"= "15",
+                      "25-34" = "25",
+                      "35-44" = "35",
+                      "45-54" = "45",
+                      "55-64" = "55",
+                      "65-74" = "65",
+                      "75-84" = "75",
+                      "85+" = "85",
+                      "NotAssigned" = "UNK"),
+         Sex = recode(Sex,
+                      "Male" = "m",
+                      "Female" = "f",
+                      "NonBinary" = "NonBinary",
+                      "NotAssigned" = "UNK"),
+         Measure = paste0("Vaccination", Measure),
+         Region= recode(Region,
+                        "NoState"= "UNK")) %>% 
+  group_by(Date, Age, Sex, state_id, Region, Measure) %>% 
+  summarize(Value = sum(Value)) %>% 
+  ungroup() %>% 
+  distinct(Date, Age, Sex, Region, state_id,
+           Measure, Value) %>% 
+  mutate(Country = "Austria",
+         Metric = "Count",
+         Date = ddmmyyyy(Date),
+         Code = paste0(ifelse(state_id < 10, paste0("AT-", state_id), "AT")),
+         AgeInt = case_when(Age == "0" ~  12L,
+                            Age == "12" ~ 3L,
+                            Age == "85" ~ 20L,
+                            #Age == "TOT" ~ "",
+                            Age == "UNK" ~ NA_integer_,
+                            TRUE ~ 10L),
+         Code = case_when(Region == "UNK" ~ "AT-UNK+",
+                          TRUE ~ Code)) %>% 
+  mutate(Region = case_when(
+    Region == "Ã–sterreich" ~ "All",
+    Region == "KÃ¤rnten" ~ "Kärnten",
+    Region == "NiederÃ¶sterreich" ~ "Niederöstereich",
+    Region == "OberÃ¶sterreich" ~ "Oberösterreich",
+    TRUE ~ Region),
+  Measure = case_when(
+    Measure == "Vaccination5+" ~ "Vaccination5",
+    TRUE ~ Measure)) %>% 
+  select(Country, Region, Code, Date, Sex, Age, AgeInt, Metric, Measure, Value) %>% 
+  sort_input_data()
+
+
+# MK:15.09.2022: when the archive is published for the data (29.06.2022- 31.07.2022), I downloaded these and processed it; 
+# check (SideWork.Rmd) and so here we bind the processed_data once. 
+#vacc_out <- bind_rows(vacc3, processed_data, vacc_archive_2022, vacc_recent)
+
+vacc_out <- bind_rows(vacc3, vacc_archive_2022, vacc_recent)
+
+#Archive vaccine data (the historical raw and all processed)
+
+
+data_source_vacc <- paste0(dir_n, "Data_sources/", ctr, "/vaccine_age_historical", ".csv")
 write_csv(vacc, data_source_vacc)
+
+data_source_vacc_all <- paste0(dir_n, "Data_sources/", ctr, "/vaccine_age_sex_all_",today(), ".csv")
+write_csv(vacc_out, data_source_vacc_all)
+
+data_source_zip <-  c(data_source_vacc, data_source_vacc_all)
+
+
 zipname <- paste0(dir_n, 
                   "Data_sources/", 
                   ctr,
@@ -142,19 +247,19 @@ zipname <- paste0(dir_n,
                   today(), 
                   ".zip")
 zip::zipr(zipname, 
-          data_source_vacc, 
+          data_source_zip, 
           recurse = TRUE, 
           compression_level = 9,
           include_directories = TRUE)
 
-file.remove(data_source_vacc)
+file.remove(data_source_zip)
 
 
 ### combine case/death and vaccine data ####
 ####################################################################################
 out <- 
   bind_rows(db_age2,
-            vacc3) %>% 
+            vacc_out) %>% 
   sort_input_data()
 
 # saving data in N drive
@@ -162,10 +267,10 @@ out <-
 write_rds(out, paste0(dir_n, ctr, ".rds"))
 
 # updating hydra dashboard
-log_update(pp = ctr, N = nrow(bind_rows(db_age2,
-                                        vacc3)))
+log_update(pp = ctr, N = nrow(out))
 
 
+# END #
 
 #############Outdated Append code################################
 # # reading data from Austria and last date entered 

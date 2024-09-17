@@ -7,8 +7,8 @@ source("https://raw.githubusercontent.com/timriffe/covid_age/master/Automation/0
 if (!"email" %in% ls()){
   email <- "tim.riffe@gmail.com"
 }
-gs4_auth(email = email)
-drive_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 
 # info country and N drive address
 ctr <- "Finland"
@@ -209,7 +209,8 @@ FI_out <-
   mutate(isMax = Value == max(Value)) %>% 
   ungroup() %>% 
   dplyr::filter(isMax) %>% 
-  sort_input_data() 
+  sort_input_data() %>% 
+  unique()
 
 
 # # 

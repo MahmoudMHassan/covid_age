@@ -6,19 +6,32 @@ if (!"email" %in% ls()){
   email <- "tim.riffe@gmail.com"
 }
 # Drive credentials
-drive_auth(email = email)
-gs4_auth(email = email)
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
 
-library(tidyverse)
-library(xml2)
-library(rvest)
-library(lubridate)
-library(googlesheets4)
 
 # info country and N drive address
 ctr    <- "SouthKorea"
 dir_n  <- "N:/COVerAGE-DB/Automation/Hydra/"
 dir_n_source <- "N:/COVerAGE-DB/Automation/SouthKorea"
+
+## MK: 22.09.2022: Downloading the excel CASES data file (from Korean version of website) for reference
+
+data_source <- paste0(dir_n, "Data_sources/", ctr, "/ExcelReferenceData/cases_",today(), ".xlsx")
+
+korea_url <- "http://ncov.mohw.go.kr/"
+
+url_scrape <- read_html(korea_url) %>% 
+  html_nodes("a ") %>% 
+  html_attr('href')
+  
+cases_url <- data.frame(links = url_scrape) %>% 
+  filter(str_detect(links, ".xlsx")) %>% 
+  mutate(links = paste0(korea_url, links)) %>% 
+  dplyr::pull()
+
+
+download.file(cases_url, destfile = data_source, mode = "wb")
 
 
 # Data preparation --------------------------------------------------------
@@ -47,14 +60,17 @@ total_cases_i <- all_the_tables %>%
   unlist()
 
 # process age table
+
+age_original <- all_the_tables[age_table_i][[1]]
+
 data_age <- 
   all_the_tables[age_table_i][[1]] %>% 
   mutate(`Confirmed(%)` = str_replace(`Confirmed(%)`, "\\s", "|")) %>% 
   separate(`Confirmed(%)`, into = c("Cases", NA), sep = "\\|") %>% 
   mutate(`Deaths(%)` = str_replace(`Deaths(%)`, "\\s", "|")) %>% 
   separate(`Deaths(%)`, into = c("Deaths", NA), sep = "\\|") %>% 
-  mutate(Cases = str_replace(Cases, pattern = ",", replacement = ""),
-         Deaths = str_replace(Deaths, pattern = ",", replacement = "") ) %>% 
+  mutate(Cases = str_replace_all(Cases, pattern = ",", replacement = ""),
+         Deaths = str_replace_all(Deaths, pattern = ",", replacement = "")) %>% 
   select(-`Fatality rate(%)`) %>% 
   rename(Age = Category) %>% 
   pivot_longer(Cases:Deaths, names_to = "Measure", values_to = "Value") %>% 
@@ -82,6 +98,9 @@ data_age <-
 # gender totals:
 # TR: for parsing Cases and Deaths I tried n ways to split on the space, and
 # wasn't able to get the regex to work, so I ended up using character positions...
+
+sex_original <- all_the_tables[gender_table_i][[1]]
+
 sex_table <- 
 all_the_tables[gender_table_i][[1]] %>% 
   rename(Sex = Category, 
@@ -103,7 +122,9 @@ all_the_tables[gender_table_i][[1]] %>%
         Country = "South Korea",
         Region = "All",
         Code = paste("KR"))
-  
+
+total_original <- all_the_tables[total_cases_i][[1]]
+
 cases_total <-
 all_the_tables[total_cases_i][[1]] %>% 
   select(-`Daily New Cases`) %>% 
@@ -164,7 +185,13 @@ log_update("SouthKorea", N = nrow(new_data))
 
 data_source <- paste0(dir_n, "Data_sources/", ctr,today(), ".csv")
 
-write_csv(new_data, data_source)
+data_today <- list("Age" = age_original, 
+                   "Sex" = sex_original,
+                   "Total" = total_original) 
+
+
+
+writexl::write_xlsx(data_today, data_source)
 
 
 zipname <- paste0(dir_n, 

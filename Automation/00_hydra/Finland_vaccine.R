@@ -18,6 +18,7 @@ gs4_auth(email = Sys.getenv("email"))
 DataArchive <- read_rds(paste0(dir_n, ctr, ".rds")) %>% 
   mutate(Measure = case_when(
     Measure == "Third dose" ~ "Vaccination3",
+    Measure == "Fourth dose" ~ "Vaccination4",
     TRUE ~ Measure
   ))
 
@@ -35,7 +36,7 @@ date_text <-
   html_text()
 
 
-date= substr(date_text, 92, 101)%>%
+date= substr(date_text, 92, 102) %>% 
   dmy()
 
 
@@ -76,12 +77,14 @@ Out_vaccine= In_vaccine%>%
          Measure=recode(Measure,
                         `First dose`="Vaccination1",
                         `Second dose`="Vaccination2",
-                        `Third dose`="Vaccination3"),
+                        `Third dose`="Vaccination3",
+                        `Fourth dose`="Vaccination4"),
          Metric = "Count",
          Sex= "b")%>%
   mutate(AgeInt = case_when(
-    Age == "12" ~ 4L,
-    Age == "18" ~ 4L,
+    Age == "5" ~ 7L,
+    Age == "12" ~ 6L,
+    Age == "18" ~ 7L,
     Age == "80" ~ 25L,
     Age == "UNK" ~ NA_integer_,
     TRUE ~ 5L))%>% 
@@ -100,7 +103,7 @@ Out_vaccine= In_vaccine%>%
 small_ages <- Out_vaccine %>% 
   filter(Age == "12") %>% 
   mutate(Age = 0,
-         AgeInt = 12L,
+         AgeInt = 5L,
          Value = 0)
 
 Out_vaccine <- rbind(Out_vaccine, small_ages) %>% 

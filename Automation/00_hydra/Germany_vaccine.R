@@ -20,6 +20,11 @@ ctr          <- "Germany_vaccine" # it's a placeholder
 dir_n        <- "N:/COVerAGE-DB/Automation/Hydra/"
 
 
+# Drive credentials
+drive_auth(email = Sys.getenv("email"))
+gs4_auth(email = Sys.getenv("email"))
+
+
 #read in data vaccine
 
 url_v="https://raw.githubusercontent.com/robert-koch-institut/COVID-19-Impfungen_in_Deutschland/master/Aktuell_Deutschland_Landkreise_COVID-19-Impfungen.csv"
@@ -67,7 +72,7 @@ Vaccine_out_reg= Vaccine_in%>%
   arrange(Age,Date,Region,Measure)%>% 
   group_by(Age,Region,Measure) %>% 
   mutate(Value = cumsum(Value)) %>% 
-  ungroup()%>%
+  ungroup() %>% 
   mutate(Code1 = case_when(Region == 'Baden-Württemberg' ~ 'DE-BW',
                            Region == 'Bayern' ~ 'DE-BY',
                            Region == 'Berlin' ~ 'DE-BE',
@@ -84,10 +89,10 @@ Vaccine_out_reg= Vaccine_in%>%
                            Region == 'Sachsen-Anhalt' ~ 'DE-ST',
                            Region == 'Schleswig-Holstein' ~ 'DE-SH',
                            Region == 'Thüringen' ~ 'DE-TH'),
-         Measure= recode(Measure,
-                         "1"= "Vaccination1",
-                         "2"="Vaccination2",
-                         "3"="Vaccination3"),
+         Measure= case_when(Measure== "1"~ "Vaccination1",
+                            Measure=="2"~"Vaccination2",
+                            Measure=="3"~"Vaccination3",
+                            Measure=="4"~"Vaccination4"),
          Age=recode(Age, 
                     "05-11"="5",
                     "12-17"="12",
@@ -130,7 +135,8 @@ Vaccine_out_all= Vaccine_in%>%
   mutate(Measure= recode(Measure,
                          "1"= "Vaccination1",
                          "2"="Vaccination2",
-                         "3"="Vaccination3"),
+                         "3"="Vaccination3",
+                         "4"="Vaccination4"),
          Age=recode(Age, 
                     "05-11"="5",
                     "12-17"="12",
